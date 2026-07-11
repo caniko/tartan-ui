@@ -13,6 +13,8 @@ web = ["dioxus/web"]
 server = ["dioxus/fullstack", "dioxus/server"]
 desktop = ["dioxus/desktop"]
 native = ["dioxus/native"]
+devtools = ["dioxus/devtools"]
+wasm-split = ["dioxus/wasm-split"]
 
 [dependencies]
 tartan-ui-core.workspace = true
