@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/tartan-ui-core", "crates/tartan-ui-dioxus"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+authors = ["Can H. Tartanoglu <canhtart@gmail.com>"]
+
+[workspace.dependencies]
+tartan-ui-core = { path = "crates/tartan-ui-core" }
+tartan-ui-dioxus = { path = "crates/tartan-ui-dioxus", default-features = false }
+serde = { version = "1", features = ["derive"] }
+dioxus = { version = "=0.7.9", default-features = false, features = ["lib"] }
+web-sys = { version = "0.3.103", features = ["Window", "Location"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

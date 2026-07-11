@@ -1,0 +1,20 @@
+[package]
+name = "tartan-ui-dioxus"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Shared Dioxus components for Tartanoglu applications"
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+server = ["dioxus/fullstack", "dioxus/server"]
+desktop = ["dioxus/desktop"]
+native = ["dioxus/native"]
+
+[dependencies]
+tartan-ui-core.workspace = true
+dioxus.workspace = true
+web-sys.workspace = true

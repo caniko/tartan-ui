@@ -1,0 +1,34 @@
+:root {
+  --tartan-paper: #fbfaf7;
+  --tartan-ink: #20201e;
+  --tartan-muted: #6d6a64;
+  --tartan-line: #ddd8cf;
+  --tartan-accent: #7c3f58;
+  --tartan-accent-soft: #f0e4e9;
+}
+.tartan-shell { min-height: 100vh; background: var(--tartan-paper); color: var(--tartan-ink); }
+.tartan-shell__main { width: min(100% - 3rem, 76rem); margin: 0 auto; padding: 2rem 0 4rem; }
+.tartan-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.5rem; padding: 0 1.25rem; border-bottom: 1px solid var(--tartan-line); }
+.tartan-header__brand { color: inherit; font-weight: 700; text-decoration: none; }
+.tartan-header__identity { display: flex; align-items: baseline; gap: .75rem; color: var(--tartan-muted); font-size: .9rem; }
+.tartan-header__email { font-size: .75rem; }
+.tartan-dashboard-header { margin-bottom: 2rem; max-width: 46rem; }
+.tartan-dashboard-header h1 { margin: .35rem 0 .75rem; font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -.03em; }
+.tartan-eyebrow { margin: 0; color: var(--tartan-accent); font-size: .75rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.tartan-muted { color: var(--tartan-muted); }
+.tartan-card { border: 1px solid var(--tartan-line); border-radius: .7rem; background: #fff; padding: 1.25rem; }
+.tartan-resource-card { display: flex; flex-direction: column; justify-content: space-between; gap: 1.25rem; }
+.tartan-resource-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; }
+.tartan-resource-card__body > .tartan-progress,
+.tartan-resource-card__body > .tartan-metrics { margin-top: 1rem; }
+.tartan-resource-card h2 { margin: 0; font-size: 1.25rem; }
+.tartan-button { display: inline-flex; width: fit-content; border-radius: .4rem; background: var(--tartan-accent); color: #fff; padding: .55rem .8rem; text-decoration: none; }
+.tartan-button:hover { filter: brightness(1.08); }
+.tartan-progress__labels { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .35rem; font-size: .75rem; color: var(--tartan-muted); }
+.tartan-progress__track { overflow: hidden; height: .45rem; border-radius: 99px; background: var(--tartan-accent-soft); }
+.tartan-progress__value { height: 100%; border-radius: inherit; background: var(--tartan-accent); }
+.tartan-metrics { display: flex; flex-wrap: wrap; gap: 1.5rem; padding: 1rem 0; border-block: 1px solid var(--tartan-line); }
+.tartan-metric { display: grid; gap: .15rem; min-width: 7rem; }
+.tartan-metric strong { font-size: 1.6rem; }
+.tartan-metric span { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.tartan-empty { padding: 2rem; border: 1px dashed var(--tartan-line); border-radius: .7rem; text-align: center; }
