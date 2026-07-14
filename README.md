@@ -5,7 +5,8 @@ bekiper, Pink Raven, SynDB, and Plinth.
 
 The workspace currently targets stable Dioxus 0.7.9. Experimental Native/Blitz
 preview support belongs in a separate gallery target and is not enabled by
-default in production consumers.
+default in production consumers. The shared Dioxus crate itself has no
+renderer default; applications opt into `web`, `server`, or a native target.
 
 ## Crates
 

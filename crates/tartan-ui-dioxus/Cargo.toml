@@ -8,7 +8,10 @@ authors.workspace = true
 description = "Shared Dioxus components for Tartanoglu applications"
 
 [features]
-default = ["web"]
+# Consumers choose `web`, `server`, or a renderer explicitly. Keeping the
+# shared crate target-neutral prevents a browser dependency from leaking into
+# server-only feature graphs.
+default = []
 web = ["dioxus/web"]
 server = ["dioxus/fullstack", "dioxus/server"]
 desktop = ["dioxus/desktop"]
