@@ -14,6 +14,12 @@ renderer default; applications opt into `web`, `server`, or a native target.
   framework dependency.
 - `tartan-ui-dioxus` contains shared Dioxus components and library assets.
 
+The first migration primitives are `FeedbackBanner` and `LoadingState`. They
+accept already-mapped application values, expose explicit live-region semantics,
+and do not make requests or decide application state. Keep those boundaries
+when adapting Leptos products so the same contract remains usable from SSR,
+hydration, and browser-only routes.
+
 The migration targets reserve Dioxus's opt-in `devtools` and `wasm-split`
 features. Devtools/Subsecond-style hotpatching is development-only; WASM
 splitting is enabled only for routes with a measurable payload benefit. The

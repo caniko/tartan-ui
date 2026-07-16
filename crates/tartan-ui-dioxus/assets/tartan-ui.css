@@ -32,3 +32,14 @@
 .tartan-metric strong { font-size: 1.6rem; }
 .tartan-metric span { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
 .tartan-empty { padding: 2rem; border: 1px dashed var(--tartan-line); border-radius: .7rem; text-align: center; }
+.tartan-feedback { margin-bottom: 1rem; border: 1px solid var(--tartan-line); border-radius: .55rem; padding: .8rem 1rem; }
+.tartan-feedback--info { background: #eef4f8; }
+.tartan-feedback--success { background: #edf7ef; }
+.tartan-feedback--warning { background: #fff7e6; }
+.tartan-feedback--error { background: #fceced; }
+.tartan-loading { display: inline-flex; align-items: center; gap: .6rem; color: var(--tartan-muted); }
+.tartan-loading__spinner { width: .9rem; height: .9rem; border: .14rem solid var(--tartan-accent-soft); border-top-color: var(--tartan-accent); border-radius: 50%; animation: tartan-loading-spin .8s linear infinite; }
+@keyframes tartan-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .tartan-loading__spinner { animation: none; }
+}

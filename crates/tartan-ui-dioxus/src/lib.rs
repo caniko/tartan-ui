@@ -2,7 +2,8 @@
 
 use dioxus::prelude::*;
 use tartan_ui_core::{
-    AccessibleResource, Identity, Metric, Progress, ResourceLink, ResourceSummary,
+    AccessibleResource, Feedback, FeedbackKind, Identity, Metric, Progress, ResourceLink,
+    ResourceSummary,
 };
 
 pub const SHARED_STYLES: Asset = asset!("/assets/tartan-ui.css");
@@ -115,6 +116,45 @@ pub fn EmptyState(heading: String, message: String) -> Element {
     }
 }
 
+/// Render a product-provided message with a consistent visual treatment and
+/// an appropriate live-region role. The application owns when a message is
+/// shown; this component does not infer state or perform side effects.
+#[component]
+pub fn FeedbackBanner(feedback: Feedback) -> Element {
+    let (modifier, role, live) = feedback_accessibility(&feedback.kind);
+
+    rsx! {
+        div {
+            class: "tartan-feedback tartan-feedback--{modifier}",
+            role: role,
+            aria_live: live,
+            "{feedback.message}"
+        }
+    }
+}
+
+fn feedback_accessibility(kind: &FeedbackKind) -> (&'static str, &'static str, &'static str) {
+    match kind {
+        FeedbackKind::Info => ("info", "status", "polite"),
+        FeedbackKind::Success => ("success", "status", "polite"),
+        FeedbackKind::Warning => ("warning", "status", "assertive"),
+        FeedbackKind::Error => ("error", "alert", "assertive"),
+    }
+}
+
+/// Render a short-lived loading state while the host application resolves
+/// data. The label is intentionally required so screen readers get useful
+/// context instead of an unlabeled spinner.
+#[component]
+pub fn LoadingState(label: String) -> Element {
+    rsx! {
+        div { class: "tartan-loading", role: "status", aria_live: "polite",
+            span { class: "tartan-loading__spinner", aria_hidden: "true" }
+            span { "{label}" }
+        }
+    }
+}
+
 /// Shared authenticated landing view for products that expose resources such
 /// as datasets, projects, or workspaces.
 ///
@@ -190,5 +230,22 @@ mod tests {
         let progress = Progress { total: 4, complete: 1, secondary: 1 };
         assert_eq!(progress.percent(), 25);
         assert_eq!(progress.remaining(), 2);
+    }
+
+    #[test]
+    fn feedback_kinds_have_explicit_accessibility_contracts() {
+        let cases = [
+            (FeedbackKind::Info, "status", "polite"),
+            (FeedbackKind::Success, "status", "polite"),
+            (FeedbackKind::Warning, "status", "assertive"),
+            (FeedbackKind::Error, "alert", "assertive"),
+        ];
+
+        for (kind, expected_role, expected_live) in cases {
+            let (modifier, role, live) = feedback_accessibility(&kind);
+            assert!(!modifier.is_empty());
+            assert_eq!(role, expected_role);
+            assert_eq!(live, expected_live);
+        }
     }
 }
