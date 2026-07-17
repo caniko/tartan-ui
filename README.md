@@ -1,5 +1,11 @@
 # tartan-ui
 
+<!-- simit:badges:start -->
+
+[![Nix](https://img.shields.io/badge/Nix-managed-5277c3)](flake.nix) [![crates.io](https://img.shields.io/badge/crates.io-ready-f46623)](https://crates.io/crates/tartan-ui-core)
+
+<!-- simit:badges:end -->
+
 Shared framework-neutral presentation contracts and Dioxus components for
 bekiper, Pink Raven, SynDB, and Plinth.
 
