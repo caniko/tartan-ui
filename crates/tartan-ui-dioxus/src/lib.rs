@@ -2,8 +2,8 @@
 
 use dioxus::prelude::*;
 use tartan_ui_core::{
-    AccessibleResource, Feedback, FeedbackKind, Identity, Metric, Progress, ResourceLink,
-    ResourceSummary,
+    AccessibleResource, Feedback, FeedbackKind, Identity, Metric, NavigationLink, Progress,
+    ResourceLink, ResourceSummary,
 };
 
 pub const SHARED_STYLES: Asset = asset!("/assets/tartan-ui.css");
@@ -24,11 +24,40 @@ pub fn AppShell(
     }
 }
 
+/// Product-neutral shell composition. Branding, navigation and product state
+/// stay with the caller while the document and layout contract is shared.
+#[component]
+pub fn ProductShell(
+    title: String,
+    brand: String,
+    home_href: String,
+    identity: Option<Identity>,
+    children: Element,
+) -> Element {
+    rsx! {
+        document::Stylesheet { href: SHARED_STYLES }
+        document::Title { "{title}" }
+        div { class: "tartan-shell",
+            BrandHeader { brand, home_href, identity }
+            main { class: "tartan-shell__main", {children} }
+        }
+    }
+}
+
 #[component]
 pub fn Header(identity: Option<Identity>) -> Element {
+    BrandHeader {
+        brand: "Tartanoglu".to_string(),
+        home_href: "/".to_string(),
+        identity,
+    }
+}
+
+#[component]
+fn BrandHeader(brand: String, home_href: String, identity: Option<Identity>) -> Element {
     rsx! {
         header { class: "tartan-header",
-            a { class: "tartan-header__brand", href: "/", "Tartanoglu" }
+            a { class: "tartan-header__brand", href: "{home_href}", "{brand}" }
             div { class: "tartan-header__identity",
                 if let Some(identity) = identity {
                     if let Some(account_url) = identity.account_url {
@@ -40,6 +69,57 @@ pub fn Header(identity: Option<Identity>) -> Element {
                         span { class: "tartan-header__email", "{email}" }
                     }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn NavigationList(items: Vec<NavigationLink>, aria_label: String) -> Element {
+    rsx! {
+        nav { class: "tartan-nav", aria_label: "{aria_label}",
+            for item in items {
+                a {
+                    class: if item.current { "tartan-nav__link tartan-nav__link--current" } else { "tartan-nav__link" },
+                    href: "{item.href}",
+                    aria_current: if item.current { "page" } else { "false" },
+                    key: "{item.key}",
+                    "{item.label}"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn PageLayout(children: Element) -> Element {
+    rsx! { div { class: "tartan-page-layout", {children} } }
+}
+
+#[component]
+pub fn CardGrid(children: Element) -> Element {
+    rsx! { div { class: "tartan-card-grid", {children} } }
+}
+
+#[component]
+pub fn TagList(tags: Vec<String>) -> Element {
+    rsx! {
+        ul { class: "tartan-tag-list", aria_label: "Tags",
+            for tag in tags {
+                li { class: "tartan-tag", key: "{tag}", "{tag}" }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn MediaPreview(src: Option<String>, alt: String, unavailable_label: String) -> Element {
+    rsx! {
+        div { class: "tartan-media-preview",
+            if let Some(src) = src {
+                img { src: "{src}", alt: "{alt}" }
+            } else {
+                p { class: "tartan-media-preview__unavailable", role: "status", "{unavailable_label}" }
             }
         }
     }

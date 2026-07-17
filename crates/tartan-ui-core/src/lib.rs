@@ -22,6 +22,18 @@ pub struct ResourceLink {
     pub kind: Option<String>,
 }
 
+/// A product-owned navigation destination rendered by the shared shell.
+///
+/// The product decides which links exist and which route is current; Tartan
+/// only provides the framework-neutral representation and accessible markup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NavigationLink {
+    pub key: String,
+    pub label: String,
+    pub href: String,
+    pub current: bool,
+}
+
 /// A resource that the authenticated account may open.
 ///
 /// Applications derive this value from their authorization response; the
