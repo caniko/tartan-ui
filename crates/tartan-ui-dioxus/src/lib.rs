@@ -46,10 +46,12 @@ pub fn ProductShell(
 
 #[component]
 pub fn Header(identity: Option<Identity>) -> Element {
-    BrandHeader {
-        brand: "Tartanoglu".to_string(),
-        home_href: "/".to_string(),
-        identity,
+    rsx! {
+        BrandHeader {
+            brand: "Tartanoglu".to_string(),
+            home_href: "/".to_string(),
+            identity,
+        }
     }
 }
 
