@@ -8,6 +8,44 @@ use tartan_ui_core::{
 
 pub const SHARED_STYLES: Asset = asset!("/assets/tartan-ui.css");
 
+/// How a source image should occupy its preview frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MediaFit {
+    #[default]
+    Contain,
+    Cover,
+}
+
+impl MediaFit {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Contain => "contain",
+            Self::Cover => "cover",
+        }
+    }
+}
+
+/// Stable aspect contracts for shared media surfaces.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MediaAspect {
+    #[default]
+    Auto,
+    Square,
+    FourThree,
+    Wide,
+}
+
+impl MediaAspect {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Square => "square",
+            Self::FourThree => "four-three",
+            Self::Wide => "wide",
+        }
+    }
+}
+
 #[component]
 pub fn AppShell(
     title: String,
@@ -32,13 +70,14 @@ pub fn ProductShell(
     brand: String,
     home_href: String,
     identity: Option<Identity>,
+    #[props(default)] header_actions: Option<Element>,
     children: Element,
 ) -> Element {
     rsx! {
         document::Stylesheet { href: SHARED_STYLES }
         document::Title { "{title}" }
         div { class: "tartan-shell",
-            BrandHeader { brand, home_href, identity }
+            BrandHeader { brand, home_href, identity, header_actions }
             main { class: "tartan-shell__main", {children} }
         }
     }
@@ -56,11 +95,19 @@ pub fn Header(identity: Option<Identity>) -> Element {
 }
 
 #[component]
-fn BrandHeader(brand: String, home_href: String, identity: Option<Identity>) -> Element {
+fn BrandHeader(
+    brand: String,
+    home_href: String,
+    identity: Option<Identity>,
+    #[props(default)] header_actions: Option<Element>,
+) -> Element {
     rsx! {
         header { class: "tartan-header",
             a { class: "tartan-header__brand", href: "{home_href}", "{brand}" }
             div { class: "tartan-header__identity",
+                if let Some(actions) = header_actions {
+                    div { class: "tartan-header__actions", {actions} }
+                }
                 if let Some(identity) = identity {
                     if let Some(account_url) = identity.account_url {
                         a { href: "{account_url}", target: "_blank", rel: "noopener", "{identity.display_name}" }
@@ -115,11 +162,22 @@ pub fn TagList(tags: Vec<String>) -> Element {
 }
 
 #[component]
-pub fn MediaPreview(src: Option<String>, alt: String, unavailable_label: String) -> Element {
+pub fn MediaPreview(
+    src: Option<String>,
+    alt: String,
+    unavailable_label: String,
+    #[props(default)] fit: MediaFit,
+    #[props(default)] aspect: MediaAspect,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
     rsx! {
-        div { class: "tartan-media-preview",
+        div {
+            class: "tartan-media-preview {class}",
+            "data-media-fit": fit.as_str(),
+            "data-media-aspect": aspect.as_str(),
             if let Some(src) = src {
-                img { src: "{src}", alt: "{alt}" }
+                img { src: "{src}", alt: "{alt}", "data-media-image": "true" }
             } else {
                 p { class: "tartan-media-preview__unavailable", role: "status", "{unavailable_label}" }
             }
@@ -189,11 +247,18 @@ pub fn MetricStrip(metrics: Vec<Metric>) -> Element {
 }
 
 #[component]
-pub fn EmptyState(heading: String, message: String) -> Element {
+pub fn EmptyState(
+    heading: String,
+    message: String,
+    #[props(default)] actions: Option<Element>,
+) -> Element {
     rsx! {
         section { class: "tartan-empty", role: "status",
             h2 { "{heading}" }
             p { class: "tartan-muted", "{message}" }
+            if let Some(actions) = actions {
+                div { class: "tartan-empty__actions", {actions} }
+            }
         }
     }
 }
@@ -329,5 +394,13 @@ mod tests {
             assert_eq!(role, expected_role);
             assert_eq!(live, expected_live);
         }
+    }
+
+    #[test]
+    fn media_contracts_have_stable_dom_values() {
+        assert_eq!(MediaFit::default().as_str(), "contain");
+        assert_eq!(MediaFit::Cover.as_str(), "cover");
+        assert_eq!(MediaAspect::default().as_str(), "auto");
+        assert_eq!(MediaAspect::FourThree.as_str(), "four-three");
     }
 }

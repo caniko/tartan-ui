@@ -11,6 +11,7 @@
 .tartan-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.5rem; padding: 0 1.25rem; border-bottom: 1px solid var(--tartan-line); }
 .tartan-header__brand { color: inherit; font-weight: 700; text-decoration: none; }
 .tartan-header__identity { display: flex; align-items: baseline; gap: .75rem; color: var(--tartan-muted); font-size: .9rem; }
+.tartan-header__actions { display: flex; align-items: center; gap: .5rem; }
 .tartan-header__email { font-size: .75rem; }
 .tartan-nav { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
 .tartan-nav__link { color: var(--tartan-muted); border-radius: .35rem; padding: .4rem .6rem; text-decoration: none; }
@@ -21,6 +22,10 @@
 .tartan-tag { border-radius: 99px; background: var(--tartan-accent-soft); color: var(--tartan-accent); padding: .25rem .55rem; font-size: .75rem; }
 .tartan-media-preview { display: grid; min-height: 8rem; place-items: center; overflow: hidden; border: 1px solid var(--tartan-line); border-radius: .55rem; background: #f3f0eb; }
 .tartan-media-preview img { display: block; width: 100%; height: 100%; max-height: 24rem; object-fit: contain; }
+.tartan-media-preview[data-media-fit="cover"] img { object-fit: cover; }
+.tartan-media-preview[data-media-aspect="square"] { aspect-ratio: 1; min-height: 0; }
+.tartan-media-preview[data-media-aspect="four-three"] { aspect-ratio: 4 / 3; min-height: 0; }
+.tartan-media-preview[data-media-aspect="wide"] { aspect-ratio: 16 / 9; min-height: 0; }
 .tartan-media-preview__unavailable { color: var(--tartan-muted); font-size: .85rem; }
 .tartan-dashboard-header { margin-bottom: 2rem; max-width: 46rem; }
 .tartan-dashboard-header h1 { margin: .35rem 0 .75rem; font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -.03em; }
@@ -42,6 +47,7 @@
 .tartan-metric strong { font-size: 1.6rem; }
 .tartan-metric span { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
 .tartan-empty { padding: 2rem; border: 1px dashed var(--tartan-line); border-radius: .7rem; text-align: center; }
+.tartan-empty__actions { display: flex; justify-content: center; gap: .5rem; margin-top: 1rem; }
 .tartan-feedback { margin-bottom: 1rem; border: 1px solid var(--tartan-line); border-radius: .55rem; padding: .8rem 1rem; }
 .tartan-feedback--info { background: #eef4f8; }
 .tartan-feedback--success { background: #edf7ef; }
