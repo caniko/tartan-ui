@@ -3,10 +3,33 @@
 use dioxus::prelude::*;
 use tartan_ui_core::{
     AccessibleResource, Feedback, FeedbackKind, Identity, Metric, NavigationLink, Progress,
-    ResourceLink, ResourceSummary,
+    ResourceLink, ResourceSummary, ThemePreference,
 };
 
+#[cfg(all(feature = "web", feature = "native-embedded"))]
+compile_error!("tartan-ui-dioxus features `web` and `native-embedded` are mutually exclusive");
+
+#[cfg(not(feature = "native-embedded"))]
 pub const SHARED_STYLES: Asset = asset!("/assets/tartan-ui.css");
+
+#[cfg(feature = "native-embedded")]
+pub const SHARED_STYLES: &str = include_str!("../assets/tartan-ui.css");
+
+fn shared_styles() -> Element {
+    #[cfg(feature = "native-embedded")]
+    {
+        rsx! {
+            style { dangerous_inner_html: SHARED_STYLES }
+        }
+    }
+
+    #[cfg(not(feature = "native-embedded"))]
+    {
+        rsx! {
+            document::Stylesheet { href: SHARED_STYLES }
+        }
+    }
+}
 
 /// How a source image should occupy its preview frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -53,7 +76,7 @@ pub fn AppShell(
     children: Element,
 ) -> Element {
     rsx! {
-        document::Stylesheet { href: SHARED_STYLES }
+        {shared_styles()}
         document::Title { "{title}" }
         div { class: "tartan-shell",
             Header { identity }
@@ -74,11 +97,36 @@ pub fn ProductShell(
     children: Element,
 ) -> Element {
     rsx! {
-        document::Stylesheet { href: SHARED_STYLES }
+        {shared_styles()}
         document::Title { "{title}" }
         div { class: "tartan-shell",
             BrandHeader { brand, home_href, identity, header_actions }
             main { class: "tartan-shell__main", {children} }
+        }
+    }
+}
+
+/// A renderer-neutral theme control. The host owns persistence and applies
+/// the returned preference to its document or native window.
+#[component]
+pub fn ThemeToggle(
+    preference: ThemePreference,
+    on_toggle: EventHandler<ThemePreference>,
+) -> Element {
+    let next = preference.next();
+    let label = match preference {
+        ThemePreference::System => "Use light theme",
+        ThemePreference::Light => "Use dark theme",
+        ThemePreference::Dark => "Use system theme",
+    };
+    rsx! {
+        button {
+            class: "tartan-theme-toggle",
+            type: "button",
+            aria_label: "{label}",
+            aria_pressed: preference != ThemePreference::System,
+            onclick: move |_| on_toggle.call(next),
+            "Theme: {preference.as_str()}"
         }
     }
 }

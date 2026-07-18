@@ -18,6 +18,10 @@ desktop = ["dioxus/desktop"]
 native = ["dioxus/native"]
 devtools = ["dioxus/devtools"]
 wasm-split = ["dioxus/wasm-split"]
+# Embed the shared stylesheet in native renderers. This deliberately does not
+# enable a renderer; applications still choose `native`, `desktop`, or their
+# own Dioxus renderer feature.
+native-embedded = []
 
 [dependencies]
 tartan-ui-core.workspace = true

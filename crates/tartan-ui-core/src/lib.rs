@@ -106,9 +106,40 @@ pub struct Feedback {
     pub message: String,
 }
 
+/// The product-neutral theme preference used by shared controls.
+///
+/// Applications own persistence and document-level theme application. The
+/// shared crate only provides the stable value and its keyboard-friendly
+/// cycle order so web and native consumers do not drift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ThemePreference {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemePreference {
+    pub fn next(self) -> Self {
+        match self {
+            Self::System => Self::Light,
+            Self::Light => Self::Dark,
+            Self::Dark => Self::System,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Progress;
+    use super::{Progress, ThemePreference};
 
     #[test]
     fn progress_is_saturating_and_bounded() {
@@ -124,5 +155,13 @@ mod tests {
     #[test]
     fn empty_progress_has_zero_percent() {
         assert_eq!(Progress::default().percent(), 0);
+    }
+
+    #[test]
+    fn theme_preference_cycles_without_application_side_effects() {
+        assert_eq!(ThemePreference::default().as_str(), "system");
+        assert_eq!(ThemePreference::System.next(), ThemePreference::Light);
+        assert_eq!(ThemePreference::Light.next(), ThemePreference::Dark);
+        assert_eq!(ThemePreference::Dark.next(), ThemePreference::System);
     }
 }

@@ -39,6 +39,8 @@
 .tartan-resource-card h2 { margin: 0; font-size: 1.25rem; }
 .tartan-button { display: inline-flex; width: fit-content; border-radius: .4rem; background: var(--tartan-accent); color: #fff; padding: .55rem .8rem; text-decoration: none; }
 .tartan-button:hover { filter: brightness(1.08); }
+.tartan-theme-toggle { border: 1px solid var(--tartan-line); border-radius: .4rem; background: transparent; color: inherit; padding: .45rem .65rem; cursor: pointer; }
+.tartan-theme-toggle:hover, .tartan-theme-toggle:focus-visible { background: var(--tartan-accent-soft); }
 .tartan-progress__labels { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .35rem; font-size: .75rem; color: var(--tartan-muted); }
 .tartan-progress__track { overflow: hidden; height: .45rem; border-radius: 99px; background: var(--tartan-accent-soft); }
 .tartan-progress__value { height: 100%; border-radius: inherit; background: var(--tartan-accent); }
