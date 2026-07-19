@@ -206,6 +206,7 @@ pub fn TagList(tags: Vec<String>) -> Element {
 }
 
 #[component]
+/// Render an image or unavailable state with an optional positioned overlay.
 pub fn MediaPreview(
     src: Option<String>,
     alt: String,
