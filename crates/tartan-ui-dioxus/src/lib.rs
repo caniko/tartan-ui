@@ -70,11 +70,7 @@ impl MediaAspect {
 }
 
 #[component]
-pub fn AppShell(
-    title: String,
-    identity: Option<Identity>,
-    children: Element,
-) -> Element {
+pub fn AppShell(title: String, identity: Option<Identity>, children: Element) -> Element {
     rsx! {
         {shared_styles()}
         document::Title { "{title}" }
@@ -217,6 +213,7 @@ pub fn MediaPreview(
     #[props(default)] fit: MediaFit,
     #[props(default)] aspect: MediaAspect,
     #[props(default)] class: Option<String>,
+    #[props(default)] overlay: Option<Element>,
 ) -> Element {
     let class = class.unwrap_or_default();
     rsx! {
@@ -226,6 +223,9 @@ pub fn MediaPreview(
             "data-media-aspect": aspect.as_str(),
             if let Some(src) = src {
                 img { src: "{src}", alt: "{alt}", "data-media-image": "true" }
+                if let Some(overlay) = overlay {
+                    div { class: "tartan-media-preview__overlay", {overlay} }
+                }
             } else {
                 p { class: "tartan-media-preview__unavailable", role: "status", "{unavailable_label}" }
             }
@@ -422,7 +422,11 @@ mod tests {
 
     #[test]
     fn shared_progress_model_is_renderable() {
-        let progress = Progress { total: 4, complete: 1, secondary: 1 };
+        let progress = Progress {
+            total: 4,
+            complete: 1,
+            secondary: 1,
+        };
         assert_eq!(progress.percent(), 25);
         assert_eq!(progress.remaining(), 2);
     }
