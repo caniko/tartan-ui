@@ -13,12 +13,18 @@ The workspace currently targets stable Dioxus 0.7.9. Experimental Native/Blitz
 preview support belongs in a separate gallery target and is not enabled by
 default in production consumers. The shared Dioxus crate itself has no
 renderer default; applications opt into `web`, `server`, or a native target.
+The `native` feature embeds the shared stylesheet (the equivalent explicit
+`native-embedded` feature is available for custom renderer compositions), so
+raw Blitz launches do not depend on a Dioxus asset-linker pass.
 
 ## Crates
 
 - `tartan-ui-core` contains serializable presentation models with no UI
   framework dependency.
 - `tartan-ui-dioxus` contains shared Dioxus components and library assets.
+
+Theme preference values live in `tartan-ui-core`; `ThemeToggle` in the Dioxus
+crate cycles the value without owning persistence or document/window policy.
 
 The first migration primitives are `FeedbackBanner` and `LoadingState`. They
 accept already-mapped application values, expose explicit live-region semantics,

@@ -15,7 +15,10 @@ default = []
 web = ["dioxus/web"]
 server = ["dioxus/fullstack", "dioxus/server"]
 desktop = ["dioxus/desktop"]
-native = ["dioxus/native"]
+# Native builds embed the shared stylesheet so raw Cargo/Blitz launches do not
+# depend on a Dioxus asset-linker pass. The feature still only selects the
+# renderer; `native-embedded` is presentation plumbing owned here.
+native = ["dioxus/native", "native-embedded"]
 devtools = ["dioxus/devtools"]
 wasm-split = ["dioxus/wasm-split"]
 # Embed the shared stylesheet in native renderers. This deliberately does not
