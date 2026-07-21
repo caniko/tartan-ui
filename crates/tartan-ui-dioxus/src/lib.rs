@@ -1,5 +1,11 @@
 //! Shared, product-neutral Dioxus presentation components.
 
+// Dioxus expands interpolated RSX attributes/text into `format!` calls. The
+// interpolation is the renderer's supported dynamic-binding syntax, so this
+// lint is a false positive for the component crate rather than an actionable
+// allocation simplification.
+#![allow(clippy::useless_format)]
+
 use dioxus::prelude::*;
 use tartan_ui_core::{
     AccessibleResource, Feedback, FeedbackKind, Identity, Metric, NavigationLink, Progress,
@@ -70,11 +76,7 @@ impl MediaAspect {
 }
 
 #[component]
-pub fn AppShell(
-    title: String,
-    identity: Option<Identity>,
-    children: Element,
-) -> Element {
+pub fn AppShell(title: String, identity: Option<Identity>, children: Element) -> Element {
     rsx! {
         {shared_styles()}
         document::Title { "{title}" }
@@ -343,7 +345,7 @@ fn feedback_accessibility(kind: &FeedbackKind) -> (&'static str, &'static str, &
 #[component]
 pub fn LoadingState(label: String) -> Element {
     rsx! {
-        div { class: "tartan-loading", role: "status", aria_live: "polite",
+        div { class: "tartan-loading", role: "status", aria_live: "polite", aria_busy: true,
             span { class: "tartan-loading__spinner", aria_hidden: "true" }
             span { "{label}" }
         }
@@ -422,7 +424,11 @@ mod tests {
 
     #[test]
     fn shared_progress_model_is_renderable() {
-        let progress = Progress { total: 4, complete: 1, secondary: 1 };
+        let progress = Progress {
+            total: 4,
+            complete: 1,
+            secondary: 1,
+        };
         assert_eq!(progress.percent(), 25);
         assert_eq!(progress.remaining(), 2);
     }
