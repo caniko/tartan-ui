@@ -29,7 +29,7 @@
       };
 
       toolchain = rs-harbor.lib.mkToolchain {inherit pkgs;};
-      inherit (toolchain) craneLib rustToolchain;
+      inherit (toolchain) craneLib rawCraneLib rustToolchain;
       buildCache = rs-harbor.lib.mkBuildCachePolicy {
         inherit pkgs;
         buildPackageSet = pkgs.buildPackages;
@@ -38,12 +38,60 @@
         namespaceScope = "canix-rust";
         namespaceGeneration = 5;
       };
-      src = craneLib.cleanCargoSource ./.;
+      # Dioxus' `asset!` macro resolves assets while Cargo compiles. Crane's
+      # default Cargo source filter excludes CSS, so keep the shared stylesheet
+      # alongside the ordinary Rust sources in every package and check.
+      src = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          (craneLib.fileset.commonCargoSources ./.)
+          ./crates/tartan-ui-dioxus/assets
+        ];
+      };
       commonArgs = {
         inherit src;
+        pname = "tartan-ui";
+        version = "0.1.0";
         strictDeps = true;
+        # Dioxus native and desktop dependency graphs include openssl-sys.
+        # Keep the native dependency visible to both Crane checks and package
+        # builds so the renderer matrix is reproducible outside a workstation
+        # with system OpenSSL installed.
+        nativeBuildInputs = with pkgs; [pkg-config openssl.dev];
+        buildInputs = with pkgs; [openssl];
       };
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+      # Renderer checks must also run on builders that do not expose atlas'
+      # managed compiler-cache transport. The release package remains on the
+      # fail-closed rs-harbor cache policy above.
+      checkCargoArtifacts = rawCraneLib.buildDepsOnly commonArgs;
+      dioxusWebArgs = commonArgs // {
+        cargoArtifacts = checkCargoArtifacts;
+      };
+      dioxusServerArgs = commonArgs // {
+        cargoArtifacts = checkCargoArtifacts;
+      };
+      dioxusNativeArgs = commonArgs // {
+        cargoArtifacts = checkCargoArtifacts;
+        # Blitz' Stylo dependency generates properties during compilation.
+        nativeBuildInputs = commonArgs.nativeBuildInputs ++ [pkgs.python3];
+      };
+      dioxusDesktopArgs = commonArgs // {
+        cargoArtifacts = checkCargoArtifacts;
+        # dioxus-desktop uses Wry/WebKitGTK on Linux. Declaring these here
+        # keeps browser, server and Blitz-native checks free of desktop-only
+        # native dependencies.
+        buildInputs = commonArgs.buildInputs ++ (with pkgs; [
+          gtk3
+          webkitgtk_4_1
+        ]);
+      };
+      mkDioxusCheck = args: command:
+        rawCraneLib.mkCargoDerivation (args // {
+          pnameSuffix = "-check";
+          buildPhaseCargoCommand = command;
+          installPhaseCommand = "mkdir -p $out";
+        });
       package = buildCache.withRustCache {
         package = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
       };
@@ -62,12 +110,25 @@
       checks = {
         default = package;
         formatting = treefmtEval.config.build.check self;
-        clippy = craneLib.cargoClippy (commonArgs
-          // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-targets --all-features -- --deny warnings";
-          });
-        fmt = craneLib.cargoFmt {inherit src;};
+        # Renderer features are mutually exclusive in this crate (for
+        # example, `web` and `native-embedded` intentionally cannot coexist),
+        # so validation is an explicit matrix rather than `--all-features`.
+        core-tests = rawCraneLib.cargoTest (commonArgs // {
+          cargoArtifacts = checkCargoArtifacts;
+          cargoTestExtraArgs = "-p tartan-ui-core";
+        });
+        dioxus-web = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web";
+        dioxus-web-devtools = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,devtools";
+        dioxus-web-wasm-split = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,wasm-split";
+        dioxus-server = mkDioxusCheck dioxusServerArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features server";
+        dioxus-native = mkDioxusCheck dioxusNativeArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features native";
+        dioxus-desktop = mkDioxusCheck dioxusDesktopArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features desktop";
+        clippy = rawCraneLib.cargoClippy (dioxusWebArgs // {
+          # Crane's cargoClippy helper supplies --locked for the derivation;
+          # repeating it here makes Cargo reject the command line.
+          cargoClippyExtraArgs = "-p tartan-ui-dioxus --no-default-features --features web --all-targets -- --deny warnings";
+        });
+        fmt = rawCraneLib.cargoFmt {inherit src;};
       };
       devShells.default = craneLib.devShell {
         checks = self.checks.${system};
@@ -86,6 +147,8 @@
           jq
           minisign
           nodejs
+          openssl
+          pkg-config
           pre-commit
           rpm
           util-linux
@@ -105,13 +168,71 @@
             runtimeInputs = with pkgs; [
               cargo-deny
               git
+              gtk3
               jq
+              openssl
+              openssl.dev
+              pkg-config
+              python3
               rustToolchain
+              stdenv.cc
+              webkitgtk_4_1
             ];
             text = ''
               set -euo pipefail
-              cargo test --workspace --all-features
-              cargo clippy --workspace --all-targets --all-features -- --deny warnings
+              # `nix run` does not inherit the devShell's compiler or
+              # pkg-config environment. Keep the standalone gate equivalent
+              # to the native/desktop Nix checks instead of failing at the
+              # first build-script invocation.
+              export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" (with pkgs; [
+                openssl
+                gtk3
+                webkitgtk_4_1
+                glib
+                atk
+                gdk-pixbuf
+                pango
+                cairo
+                libsoup_3
+                libepoxy
+                harfbuzz
+                fribidi
+                zlib
+                libpng
+                expat
+                at-spi2-core
+                libffi
+                pcre2
+                fontconfig
+                wayland
+                cups
+                libdrm
+                mesa
+                libX11
+                libXext
+                libXi
+                libXrender
+                libXrandr
+                libXcursor
+                libXdamage
+                libXcomposite
+                libXfixes
+                libXinerama
+                libICE
+                libSM
+              ])}:${pkgs.lib.makeSearchPathOutput "dev" "share/pkgconfig" (with pkgs; [zlib])}''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+              export OPENSSL_NO_VENDOR=1
+              # Keep this in lockstep with the renderer-specific Nix checks;
+              # `--all-features` is invalid because web and native embedding
+              # are deliberately mutually exclusive.
+              cargo test -p tartan-ui-core --locked
+              cargo test -p tartan-ui-dioxus --no-default-features --features web --locked
+              cargo check -p tartan-ui-dioxus --no-default-features --features web,devtools --locked
+              cargo check -p tartan-ui-dioxus --no-default-features --features web,wasm-split --locked
+              cargo check -p tartan-ui-dioxus --no-default-features --features server --locked
+              cargo check -p tartan-ui-dioxus --no-default-features --features native --locked
+              cargo check -p tartan-ui-dioxus --no-default-features --features desktop --locked
+              cargo clippy -p tartan-ui-dioxus --no-default-features --features web --all-targets --locked -- --deny warnings
               cargo deny check bans licenses sources
               cargo package --workspace --allow-dirty --list >/dev/null
             '';

@@ -21,7 +21,10 @@
   cargo-clippy = {
     enable = true;
     name = "cargo clippy";
-    entry = "cargo clippy --all-targets --all-features -- --deny warnings";
+    # The Dioxus crate's renderer features are mutually exclusive. Check the
+    # browser surface here; the flake check and release app cover the complete
+    # web/server/native/desktop matrix.
+    entry = "cargo clippy -p tartan-ui-dioxus --no-default-features --features web --all-targets --locked -- --deny warnings";
     extraPackages = pkgs.lib.optional (rustToolchain != null) rustToolchain;
     pass_filenames = false;
   };
@@ -29,7 +32,7 @@
   cargo-msrv = {
     enable = true;
     name = "cargo check MSRV";
-    entry = "${pkgs.rust-bin.stable."1.85.0".default}/bin/cargo check --workspace --all-features";
+    entry = "${pkgs.rust-bin.stable."1.85.0".default}/bin/cargo check -p tartan-ui-core --locked && ${pkgs.rust-bin.stable."1.85.0".default}/bin/cargo check -p tartan-ui-dioxus --no-default-features --features web --locked";
     extraPackages = [pkgs.rust-bin.stable."1.85.0".default];
     pass_filenames = false;
     stages = ["pre-push" "manual"];
