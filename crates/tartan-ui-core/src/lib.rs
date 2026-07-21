@@ -81,7 +81,13 @@ impl Progress {
         if self.total == 0 {
             return 0;
         }
-        ((self.complete.min(self.total) * 100) / self.total) as u8
+        // Keep the calculation bounded even when counters come from a
+        // large, server-authoritative dataset. Multiplying a u64 by 100 can
+        // overflow before the final ratio is narrowed to the UI's 0..=100
+        // range.
+        let complete = u128::from(self.complete.min(self.total));
+        let total = u128::from(self.total);
+        ((complete * 100) / total) as u8
     }
 }
 
@@ -155,6 +161,23 @@ mod tests {
     #[test]
     fn empty_progress_has_zero_percent() {
         assert_eq!(Progress::default().percent(), 0);
+    }
+
+    #[test]
+    fn large_progress_counters_remain_bounded() {
+        let progress = Progress {
+            total: u64::MAX,
+            complete: u64::MAX,
+            secondary: 0,
+        };
+        assert_eq!(progress.percent(), 100);
+
+        let halfway = Progress {
+            total: u64::MAX,
+            complete: u64::MAX / 2,
+            secondary: 0,
+        };
+        assert_eq!(halfway.percent(), 49);
     }
 
     #[test]
