@@ -28,7 +28,17 @@
         overlays = [(import rust-overlay)];
       };
 
-      toolchain = rs-harbor.lib.mkToolchain {inherit pkgs;};
+      toolchain = rs-harbor.lib.mkToolchain {
+        inherit pkgs;
+        crossTargets = [
+          "x86_64-unknown-linux-gnu"
+          "aarch64-unknown-linux-gnu"
+          "x86_64-pc-windows-gnu"
+          "x86_64-apple-darwin"
+          "aarch64-apple-darwin"
+          "wasm32-unknown-unknown"
+        ];
+      };
       inherit (toolchain) craneLib rawCraneLib rustToolchain;
       buildCache = rs-harbor.lib.mkBuildCachePolicy {
         inherit pkgs;
@@ -141,6 +151,8 @@
           cargo-sbom
           cargo-nextest
           cosign
+          binaryen
+          dioxus-cli
           file
           gnutar
           gzip
@@ -149,6 +161,7 @@
           nodejs
           openssl
           pkg-config
+          python3
           pre-commit
           rpm
           util-linux
