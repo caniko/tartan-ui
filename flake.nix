@@ -2,7 +2,7 @@
   description = "Rust project";
 
   inputs = {
-    rs-harbor.url = "git+https://codeberg.org/caniko/rs-harbor.git?ref=trunk&rev=b40cd4c4fdf6133962f67bd68a48bfd5d554d47f";
+    rs-harbor.url = "git+https://codeberg.org/caniko/rs-harbor.git?ref=trunk&rev=c26b735eede8078f795651c4a9cbf0be8733b221";
     nixpkgs.follows = "rs-harbor/nixpkgs";
     rust-overlay.follows = "rs-harbor/rust-overlay";
     crane.follows = "rs-harbor/crane";
@@ -30,6 +30,7 @@
 
       toolchain = rs-harbor.lib.mkToolchain {
         inherit pkgs;
+        toolchainProfile = "stable";
         crossTargets = [
           "x86_64-unknown-linux-gnu"
           "aarch64-unknown-linux-gnu"
