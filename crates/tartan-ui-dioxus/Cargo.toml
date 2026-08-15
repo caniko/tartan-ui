@@ -33,3 +33,12 @@ web-sys.workspace = true
 
 [dev-dependencies]
 tartan-ui-core.workspace = true
+
+[[example]]
+name = "visual_gallery"
+required-features = ["web"]
+
+[[bin]]
+name = "visual_gallery"
+path = "src/bin/visual_gallery.rs"
+required-features = ["web"]
