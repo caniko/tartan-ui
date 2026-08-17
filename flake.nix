@@ -2,7 +2,7 @@
   description = "Rust project";
 
   inputs = {
-    rs-harbor.url = "git+ssh://git@codeberg.org/caniko/rs-harbor.git?ref=trunk&rev=f209ddbca3fdbb0dc31fa3886ccc2ff7369c18ac";
+    rs-harbor.url = "git+https://github.com/caniko/rs-harbor.git?ref=trunk&rev=77d0a937c760e6ced8b7ec8fc5a214f550abe35e";
     nixpkgs.follows = "rs-harbor/nixpkgs";
     rust-overlay.follows = "rs-harbor/rust-overlay";
     crane.follows = "rs-harbor/crane";
@@ -143,7 +143,7 @@
       };
       devShells.default = craneLib.devShell {
         checks = self.checks.${system};
-        packages = with pkgs; [
+         packages = [rs-harbor.packages.${system}.harbor-ci] ++ (with pkgs; [
           cargo-about
           cargo-audit
           cargo-cyclonedx
@@ -171,7 +171,7 @@
           reprepro
           rust-analyzer
           taplo
-        ] ++ pre-commit-check.enabledPackages;
+         ] ++ pre-commit-check.enabledPackages);
         shellHook = pre-commit-check.shellHook;
       };
       apps.local-check-fast = {
