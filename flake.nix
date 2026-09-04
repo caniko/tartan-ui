@@ -2,10 +2,11 @@
   description = "Rust project";
 
   inputs = {
-    rs-harbor.url = "git+https://github.com/caniko/rs-harbor.git?ref=trunk&rev=05cc4f162b55fa904b687db1821e2463fa813e50";
-    nixpkgs.follows = "rs-harbor/nixpkgs";
-    rust-overlay.follows = "rs-harbor/rust-overlay";
-    crane.follows = "rs-harbor/crane";
+    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=05cc4f162b55fa904b687db1821e2463fa813e50";
+    rs-harbor.follows = "harbor-rs";
+    nixpkgs.follows = "harbor-rs/nixpkgs";
+    rust-overlay.follows = "harbor-rs/rust-overlay";
+    crane.follows = "harbor-rs/crane";
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     git-hooks.url = "github:cachix/git-hooks.nix";
@@ -13,7 +14,7 @@
 
   outputs = {
     self,
-    rs-harbor,
+    harbor-rs,
     nixpkgs,
     rust-overlay,
     crane,
@@ -28,7 +29,7 @@
         overlays = [(import rust-overlay)];
       };
 
-      toolchain = rs-harbor.lib.mkToolchain {
+      toolchain = harbor-rs.lib.mkToolchain {
         inherit pkgs;
         toolchainProfile = "stable";
         crossTargets = [
@@ -41,10 +42,10 @@
         ];
       };
       inherit (toolchain) craneLib rawCraneLib rustToolchain;
-      buildCache = rs-harbor.lib.mkBuildCachePolicy {
+      buildCache = harbor-rs.lib.mkBuildCachePolicy {
         inherit pkgs;
         buildPackageSet = pkgs.buildPackages;
-        sccachePackage = rs-harbor.packages.${system}.sccache;
+        sccachePackage = harbor-rs.packages.${system}.sccache;
         cacheRoot = null;
         namespaceScope = "canix-rust";
         namespaceGeneration = 5;
@@ -74,7 +75,7 @@
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
       # Renderer checks must also run on builders that do not expose atlas'
       # managed compiler-cache transport. The release package remains on the
-      # fail-closed rs-harbor cache policy above.
+      # fail-closed harbor-rs cache policy above.
       checkCargoArtifacts = rawCraneLib.buildDepsOnly commonArgs;
       dioxusWebArgs = commonArgs // {
         cargoArtifacts = checkCargoArtifacts;
@@ -143,7 +144,7 @@
       };
       devShells.default = craneLib.devShell {
         checks = self.checks.${system};
-         packages = [rs-harbor.packages.${system}.harbor-ci] ++ (with pkgs; [
+         packages = [harbor-rs.packages.${system}.harbor-ci] ++ (with pkgs; [
           cargo-about
           cargo-audit
           cargo-cyclonedx
