@@ -117,6 +117,9 @@
           cargoArtifacts = checkCargoArtifacts;
           cargoTestExtraArgs = "-p tartan-ui-core";
         });
+        dioxus-tests = rawCraneLib.cargoTest (dioxusServerArgs // {
+          cargoTestExtraArgs = "-p tartan-ui-dioxus --no-default-features --features server --lib";
+        });
         dioxus-web = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web";
         dioxus-web-devtools = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,devtools";
         dioxus-web-wasm-split = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,wasm-split";

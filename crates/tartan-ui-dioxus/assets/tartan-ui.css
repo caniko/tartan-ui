@@ -5,7 +5,20 @@
   --tartan-line: #ddd8cf;
   --tartan-accent: #7c3f58;
   --tartan-accent-soft: #f0e4e9;
+  --tartan-surface: #fff;
+  --tartan-danger: #8f1d14;
 }
+/* One-way shared-token mapping contract: every rule in this file references
+   only `--tartan-*` tokens. Host applications remap those tokens to their own
+   palette inside a `.tartan-shell` scope (see consumers) and must never be
+   referenced from here. New rules must use tokens, not product colors. */
+.tartan-panel { display: block; overflow: hidden; color: var(--tartan-ink); background: var(--tartan-surface); border: 1px solid var(--tartan-line); border-radius: .7rem; box-shadow: 0 .35rem 1rem rgba(0, 0, 0, .1); }
+.tartan-panel__body { padding: 1.5rem; }
+.tartan-panel__title { margin-top: 0; }
+.tartan-panel__description { color: var(--tartan-muted); }
+.tartan-field__label { display: block; margin-bottom: .4rem; font-weight: 600; color: var(--tartan-ink); }
+.tartan-field__hint { margin: .35rem 0 0; font-size: .875rem; color: var(--tartan-muted); }
+.tartan-field__error { margin: .35rem 0 0; font-size: .875rem; font-weight: 600; color: var(--tartan-danger); }
 .tartan-shell { min-height: 100vh; background: var(--tartan-paper); color: var(--tartan-ink); }
 .tartan-shell__main { width: min(100% - 3rem, 76rem); margin: 0 auto; padding: 2rem 0 4rem; }
 .tartan-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.5rem; padding: 0 1.25rem; border-bottom: 1px solid var(--tartan-line); }

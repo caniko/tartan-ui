@@ -30,3 +30,6 @@ native-embedded = []
 tartan-ui-core.workspace = true
 dioxus.workspace = true
 web-sys.workspace = true
+
+[dev-dependencies]
+dioxus-ssr = "=0.7.9"

@@ -418,6 +418,69 @@ fn ResourceDashboardCard(
     }
 }
 
+/// Associate a visible label with caller-provided form control(s).
+///
+/// Layout-neutral: the component owns only the label/control association and
+/// the hint/error presentation. Grid placement, input behavior, validation,
+/// and form actions stay with the caller, which passes any control(s) as
+/// children (input, select, textarea, or a control group).
+///
+/// Presentation lives in `assets/tartan-ui.css` and references only
+/// `--tartan-*` tokens. Host applications remap those tokens to their own
+/// palette through the `.tartan-shell` scope (one-way shared-token mapping);
+/// this component must not depend on host stylesheets.
+#[component]
+pub fn Field(
+    id: String,
+    label: String,
+    children: Element,
+    #[props(default)] hint: Option<String>,
+    #[props(default)] error: Option<String>,
+) -> Element {
+    rsx! {
+        div { class: "tartan-field",
+            label { class: "tartan-field__label", r#for: id, "{label}" }
+            {children}
+            if let Some(hint) = hint {
+                p { class: "tartan-field__hint", "{hint}" }
+            }
+            if let Some(error) = error {
+                p { class: "tartan-field__error", role: "alert", "{error}" }
+            }
+        }
+    }
+}
+
+/// General information card. Accepts any children; a form is not required.
+///
+/// The card surface, border, padding, and title/description typography are
+/// owned by `assets/tartan-ui.css` (token-driven, see [`Field`]). Callers
+/// compose routes, grids, forms, and domain content inside.
+#[component]
+pub fn Panel(
+    children: Element,
+    #[props(default)] title: Option<String>,
+    #[props(default)] description: Option<String>,
+) -> Element {
+    rsx! {
+        section { class: "tartan-panel",
+            div { class: "tartan-panel__body",
+                if title.is_some() || description.is_some() {
+                    div { class: "tartan-panel__header",
+                        if let Some(title) = title {
+                            h2 { class: "tartan-panel__title", "{title}" }
+                        }
+                        if let Some(description) = description {
+                            p { class: "tartan-panel__description", "{description}" }
+                        }
+                    }
+                }
+                {children}
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -448,6 +511,96 @@ mod tests {
             assert_eq!(role, expected_role);
             assert_eq!(live, expected_live);
         }
+    }
+
+    #[test]
+    fn field_associates_label_with_control() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Field { id: "q".to_string(), label: "Search term".to_string(),
+                input { id: "q", name: "q" }
+            }
+        });
+
+        assert!(html.contains("class=\"tartan-field\""));
+        assert!(html.contains("for=\"q\""));
+        assert!(html.contains("id=\"q\""));
+        assert!(html.contains("Search term"));
+    }
+
+    #[test]
+    fn field_passes_controls_through_unchanged() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Field { id: "compartments".to_string(), label: "Compartments".to_string(),
+                select { id: "compartments", name: "compartments", multiple: true,
+                    option { value: "neuron", "Neuron" }
+                }
+            }
+        });
+
+        assert!(html.contains("multiple"));
+        assert!(html.contains("value=\"neuron\""));
+        assert!(html.contains("for=\"compartments\""));
+    }
+
+    #[test]
+    fn field_hint_and_error_carry_their_semantics() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Field {
+                id: "note".to_string(),
+                label: "Note".to_string(),
+                hint: "Optional context for reviewers.".to_string(),
+                error: "A note is required here.".to_string(),
+                textarea { id: "note", name: "note" }
+            }
+        });
+
+        assert!(html.contains("class=\"tartan-field__hint\""));
+        assert!(html.contains("Optional context for reviewers."));
+        assert!(html.contains("class=\"tartan-field__error\""));
+        assert!(html.contains("role=\"alert\""));
+        assert!(html.contains("A note is required here."));
+    }
+
+    #[test]
+    fn field_omits_hint_and_error_by_default() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Field { id: "q".to_string(), label: "Search term".to_string(),
+                input { id: "q", name: "q" }
+            }
+        });
+
+        assert!(!html.contains("tartan-field__hint"));
+        assert!(!html.contains("tartan-field__error"));
+        assert!(!html.contains("role=\"alert\""));
+    }
+
+    #[test]
+    fn panel_accepts_non_form_children() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Panel {
+                title: "Dataset created".to_string(),
+                description: "The dataset metadata was created.".to_string(),
+                p { "No form required." }
+            }
+        });
+
+        assert!(html.contains("class=\"tartan-panel\""));
+        assert!(html.contains("class=\"tartan-panel__body\""));
+        assert!(html.contains("Dataset created"));
+        assert!(html.contains("The dataset metadata was created."));
+        assert!(html.contains("No form required."));
+        assert!(!html.contains("<form"));
+    }
+
+    #[test]
+    fn panel_omits_header_without_title_or_description() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Panel { p { "Body only." } }
+        });
+
+        assert!(html.contains("class=\"tartan-panel\""));
+        assert!(!html.contains("tartan-panel__header"));
+        assert!(html.contains("Body only."));
     }
 
     #[test]
