@@ -32,4 +32,4 @@ dioxus.workspace = true
 web-sys.workspace = true
 
 [dev-dependencies]
-dioxus-ssr = "=0.7.9"
+dioxus-ssr = "=0.7.10"

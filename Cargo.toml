@@ -13,7 +13,7 @@ authors = ["Can H. Tartanoglu <canhtart@gmail.com>"]
 tartan-ui-core = { path = "crates/tartan-ui-core" }
 tartan-ui-dioxus = { path = "crates/tartan-ui-dioxus", default-features = false }
 serde = { version = "1", features = ["derive"] }
-dioxus = { version = "=0.7.9", default-features = false, features = ["lib"] }
+dioxus = { version = "=0.7.10", default-features = false, features = ["lib"] }
 web-sys = { version = "0.3.103", features = ["Window", "Location"] }
 
 [profile.release]
