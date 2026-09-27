@@ -33,6 +33,7 @@ web-sys.workspace = true
 
 [dev-dependencies]
 tartan-ui-core.workspace = true
+dioxus-ssr = "=0.7.10"
 
 [[example]]
 name = "visual_gallery"

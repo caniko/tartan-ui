@@ -34,6 +34,23 @@ pub struct NavigationLink {
     pub current: bool,
 }
 
+/// Caller-defined select option; counts are display-only, never used to infer filters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FilterOption {
+    pub value: String,
+    pub label: String,
+    pub count: Option<u64>,
+}
+
+/// Explicit checkbox state; an empty selection has no library-defined meaning.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FilterChoice {
+    pub value: String,
+    pub label: String,
+    pub count: Option<u64>,
+    pub checked: bool,
+}
+
 /// A resource that the authenticated account may open.
 ///
 /// Applications derive this value from their authorization response; the

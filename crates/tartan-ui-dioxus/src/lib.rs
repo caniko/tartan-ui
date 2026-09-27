@@ -8,8 +8,8 @@
 
 use dioxus::prelude::*;
 use tartan_ui_core::{
-    AccessibleResource, Feedback, FeedbackKind, Identity, Metric, NavigationLink, Progress,
-    ResourceLink, ResourceSummary, ThemePreference,
+    AccessibleResource, Feedback, FeedbackKind, FilterChoice, FilterOption, Identity, Metric,
+    NavigationLink, Progress, ResourceLink, ResourceSummary, ThemePreference,
 };
 
 #[cfg(all(feature = "web", feature = "native-embedded"))]
@@ -423,6 +423,152 @@ fn ResourceDashboardCard(
     }
 }
 
+/// Associate a visible label with caller-provided form controls. The caller
+/// owns form submission, validation, and the control's ID and name attributes.
+#[component]
+pub fn Field(
+    id: String,
+    label: String,
+    children: Element,
+    #[props(default)] hint: Option<String>,
+    #[props(default)] error: Option<String>,
+) -> Element {
+    rsx! {
+        div { class: "tartan-field",
+            label { class: "tartan-field__label", r#for: id, "{label}" }
+            {children}
+            if let Some(hint) = hint { p { class: "tartan-field__hint", "{hint}" } }
+            if let Some(error) = error { p { class: "tartan-field__error", role: "alert", "{error}" } }
+        }
+    }
+}
+
+/// Layout-neutral card for arbitrary caller-owned content.
+#[component]
+pub fn Panel(
+    children: Element,
+    #[props(default)] title: Option<String>,
+    #[props(default)] description: Option<String>,
+) -> Element {
+    rsx! {
+        section { class: "tartan-panel",
+            div { class: "tartan-panel__body",
+                if title.is_some() || description.is_some() {
+                    div { class: "tartan-panel__header",
+                        if let Some(title) = title { h2 { class: "tartan-panel__title", "{title}" } }
+                        if let Some(description) = description { p { class: "tartan-panel__description", "{description}" } }
+                    }
+                }
+                {children}
+            }
+        }
+    }
+}
+
+/// Link-based pagination; the host builds URLs and the summary (including
+/// whether totals are exact). Missing destinations are omitted, not disabled.
+#[component]
+pub fn Pagination(
+    label: String,
+    #[props(default)] summary: Option<String>,
+    #[props(default)] previous_href: Option<String>,
+    #[props(default)] next_href: Option<String>,
+    #[props(default)] previous_label: Option<String>,
+    #[props(default)] next_label: Option<String>,
+    #[props(default)] class: Option<String>,
+    #[props(default)] link_class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    let link_class = link_class.unwrap_or_default();
+    let default_link_class = if link_class.is_empty() { "tartan-pagination__link--default" } else { "" };
+    let previous_label = previous_label.unwrap_or_else(|| "Previous".to_string());
+    let next_label = next_label.unwrap_or_else(|| "Next".to_string());
+    rsx! {
+        nav { class: "tartan-pagination {class}", aria_label: "{label}",
+            if let Some(summary) = summary { span { class: "tartan-pagination__summary", "{summary}" } }
+            if let Some(href) = previous_href { a { class: "tartan-pagination__link {default_link_class} {link_class}", href: "{href}", "{previous_label}" } }
+            if let Some(href) = next_href { a { class: "tartan-pagination__link {default_link_class} {link_class}", href: "{href}", "{next_label}" } }
+        }
+    }
+}
+
+/// Compose semantic label/value rows without imposing a product data model.
+#[component]
+pub fn DescriptionList(children: Element, #[props(default)] class: Option<String>) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! { dl { class: "tartan-description-list {class}", {children} } }
+}
+
+#[component]
+pub fn DescriptionItem(label: String, children: Element) -> Element {
+    rsx! { div { class: "tartan-description-list__item", dt { "{label}" } dd { {children} } } }
+}
+
+/// Collapsed disclosure of caller-provided, escaped source text.
+#[component]
+pub fn DetailDisclosure(label: String, children: Element) -> Element {
+    rsx! { details { class: "tartan-disclosure", summary { "{label}" }, pre { {children} } } }
+}
+
+/// Controlled native select. Form name and ID are the caller-provided ID.
+#[component]
+pub fn SelectField(
+    id: String,
+    label: String,
+    value: String,
+    options: Vec<FilterOption>,
+    on_change: EventHandler<String>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! {
+        div { class: "tartan-filter-field {class}",
+            label { r#for: "{id}", "{label}" }
+            select { id: "{id}", name: "{id}", value: "{value}", onchange: move |event| on_change.call(event.value()),
+                for option in options {
+                    option { value: "{option.value}", selected: option.value == value,
+                        "{option.label}"
+                        if let Some(count) = option.count { " ({count})" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Explicitly controlled checkbox group. Caller interprets an empty selection.
+#[component]
+pub fn CheckboxFilterGroup(
+    legend: String,
+    name: String,
+    options: Vec<FilterChoice>,
+    #[props(default)] on_change: Option<EventHandler<(String, bool)>>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! {
+        fieldset { class: "tartan-filter-group {class}",
+            legend { "{legend}" }
+            for option in options {
+                label { key: "{option.value}",
+                    input { r#type: "checkbox", name: "{name}", value: "{option.value}", checked: option.checked,
+                        onchange: {
+                            let value = option.value.clone();
+                            move |event| {
+                                if let Some(on_change) = on_change {
+                                    on_change.call((value.clone(), event.checked()));
+                                }
+                            }
+                        }
+                    }
+                    " {option.label}"
+                    if let Some(count) = option.count { " ({count})" }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,5 +607,84 @@ mod tests {
         assert_eq!(MediaFit::Cover.as_str(), "cover");
         assert_eq!(MediaAspect::default().as_str(), "auto");
         assert_eq!(MediaAspect::FourThree.as_str(), "four-three");
+    }
+
+    #[test]
+    fn field_and_panel_compose_with_caller_owned_controls() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Panel { title: "Search".to_string(), description: "Find records".to_string(),
+                Field { id: "q".to_string(), label: "Search term".to_string(),
+                    hint: "Optional".to_string(), error: "Try again".to_string(),
+                    input { id: "q", name: "q", r#type: "search" }
+                }
+            }
+        });
+        assert!(html.contains("class=\"tartan-panel\""));
+        assert!(html.contains("for=\"q\""));
+        assert!(html.contains("name=\"q\""));
+        assert!(html.contains("role=\"alert\""));
+        assert!(html.contains("Find records"));
+    }
+
+    #[test]
+    fn pagination_renders_known_and_unknown_ranges_without_inventing_links() {
+        let html = dioxus_ssr::render_element(rsx! {
+            Pagination {
+                label: "Search result pages".to_string(),
+                summary: "1–20 loaded".to_string(),
+                next_href: "/search?offset=20".to_string(),
+                next_label: "Next page".to_string(),
+            }
+        });
+        assert!(html.contains("aria-label=\"Search result pages\""));
+        assert!(html.contains("1–20 loaded"));
+        assert!(!html.contains(">Previous</a>"));
+        assert!(html.contains("href=\"/search?offset=20\""));
+        assert!(html.contains("Next page"));
+    }
+
+    #[test]
+    fn descriptions_and_disclosures_escape_source_text() {
+        let untrusted = "<untrusted>".to_string();
+        let raw = r#"{"key":"<raw>"}"#.to_string();
+        let html = dioxus_ssr::render_element(rsx! {
+            DescriptionList {
+                DescriptionItem { label: "Source".to_string(), "{untrusted}" }
+            }
+            DetailDisclosure { label: "Raw JSON".to_string(), "{raw}" }
+        });
+        assert!(html.contains("<dt>Source</dt>"));
+        assert!(html.contains("&#60;untrusted&#62;"), "{html}");
+        assert!(html.contains("<summary>Raw JSON</summary>"));
+        assert!(html.contains("&#60;raw&#62;"));
+    }
+
+    #[test]
+    fn controlled_filter_fields_keep_caller_values_and_counts() {
+        #[component]
+        fn Fixture() -> Element {
+            rsx! {
+            SelectField {
+                id: "species".to_string(), label: "Species".to_string(),
+                value: "mouse".to_string(), options: vec![
+                    FilterOption { value: "".to_string(), label: "All".to_string(), count: None },
+                    FilterOption { value: "mouse".to_string(), label: "Mouse".to_string(), count: Some(3) },
+                ], on_change: |_| {},
+            }
+            CheckboxFilterGroup {
+                legend: "Kinds".to_string(), name: "kind".to_string(),
+                options: vec![FilterChoice { value: "pdf".to_string(), label: "PDF".to_string(), count: Some(2), checked: true }],
+                on_change: |_| {},
+            }
+            }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture {} });
+        assert!(html.contains("for=\"species\""));
+        assert!(html.contains("name=\"species\""));
+        assert!(html.contains("selected"));
+        assert!(html.contains("Mouse (3)"));
+        assert!(html.contains("name=\"kind\""));
+        assert!(html.contains("checked"));
+        assert!(html.contains("PDF (2)"));
     }
 }
