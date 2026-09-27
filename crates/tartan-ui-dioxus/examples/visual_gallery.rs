@@ -104,12 +104,12 @@ fn App() -> Element {
                 FeedbackBanner {
                     feedback: Feedback {
                         kind: FeedbackKind::Success,
-                        message: "All three component groups are ready for review.".to_string(),
+                        message: "Shared components are ready for review.".to_string(),
                     }
                 }
                 MetricStrip {
                     metrics: vec![
-                        Metric { label: "Components".to_string(), value: "16".to_string(), description: Some("shared".to_string()) },
+                        Metric { label: "Components".to_string(), value: "26".to_string(), description: Some("shared".to_string()) },
                         Metric { label: "States".to_string(), value: "4".to_string(), description: Some("covered".to_string()) },
                         Metric { label: "A11y".to_string(), value: "100%".to_string(), description: Some("named".to_string()) },
                     ]
