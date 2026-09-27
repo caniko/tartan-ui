@@ -549,21 +549,37 @@ pub fn CheckboxFilterGroup(
     rsx! {
         fieldset { class: "tartan-filter-group {class}",
             legend { "{legend}" }
-            for option in options {
-                label { key: "{option.value}",
-                    input { r#type: "checkbox", name: "{name}", value: "{option.value}", checked: option.checked,
-                        onchange: {
-                            let value = option.value.clone();
-                            move |event| {
-                                if let Some(on_change) = on_change {
-                                    on_change.call((value.clone(), event.checked()));
-                                }
+            CheckboxFilterOptions { name, options, on_change }
+        }
+    }
+}
+
+/// Controlled checkbox labels for callers that already own a fieldset or a
+/// disclosure. All options share the supplied form name; the caller decides
+/// whether to submit the form or update local state on change.
+#[component]
+pub fn CheckboxFilterOptions(
+    name: String,
+    options: Vec<FilterChoice>,
+    #[props(default)] on_change: Option<EventHandler<(String, bool)>>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! {
+        for option in options {
+            label { key: "{option.value}", class: "{class}",
+                input { r#type: "checkbox", name: "{name}", value: "{option.value}", checked: option.checked,
+                    onchange: {
+                        let value = option.value.clone();
+                        move |event| {
+                            if let Some(on_change) = on_change {
+                                on_change.call((value.clone(), event.checked()));
                             }
                         }
                     }
-                    " {option.label}"
-                    if let Some(count) = option.count { " ({count})" }
                 }
+                " {option.label}"
+                if let Some(count) = option.count { " ({count})" }
             }
         }
     }
@@ -686,5 +702,30 @@ mod tests {
         assert!(html.contains("name=\"kind\""));
         assert!(html.contains("checked"));
         assert!(html.contains("PDF (2)"));
+    }
+
+    #[test]
+    fn checkbox_options_fit_caller_owned_disclosures() {
+        #[component]
+        fn Fixture() -> Element {
+            rsx! {
+                details {
+                    summary { "File types" }
+                    CheckboxFilterOptions {
+                        name: "type".to_string(),
+                        options: vec![
+                            FilterChoice { value: "pdf".to_string(), label: "PDF".to_string(), count: Some(2), checked: true },
+                            FilterChoice { value: "json".to_string(), label: "JSON".to_string(), count: None, checked: false },
+                        ],
+                    }
+                }
+            }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture {} });
+        assert_eq!(html.matches("<fieldset").count(), 0);
+        assert_eq!(html.matches("name=\"type\"").count(), 2);
+        assert!(html.contains("value=\"pdf\" checked"));
+        assert!(html.contains("PDF (2)"));
+        assert!(html.contains("<summary>File types</summary>"));
     }
 }
