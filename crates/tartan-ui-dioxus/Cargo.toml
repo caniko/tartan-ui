@@ -12,9 +12,9 @@ description = "Shared Dioxus components for Tartanoglu applications"
 # shared crate target-neutral prevents a browser dependency from leaking into
 # server-only feature graphs.
 default = []
-web = ["dioxus/web"]
+web = ["dioxus/web", "dioxus/launch"]
 server = ["dioxus/fullstack", "dioxus/server"]
-desktop = ["dioxus/desktop"]
+desktop = ["dioxus/desktop", "dioxus/launch"]
 # Native builds embed the shared stylesheet so raw Cargo/Blitz launches do not
 # depend on a Dioxus asset-linker pass. The feature still only selects the
 # renderer; `native-embedded` is presentation plumbing owned here.
@@ -30,3 +30,16 @@ native-embedded = []
 tartan-ui-core.workspace = true
 dioxus.workspace = true
 web-sys.workspace = true
+
+[dev-dependencies]
+tartan-ui-core.workspace = true
+dioxus-ssr = "=0.7.10"
+
+[[example]]
+name = "visual_gallery"
+required-features = ["web"]
+
+[[bin]]
+name = "visual_gallery"
+path = "src/bin/visual_gallery.rs"
+required-features = ["web"]
