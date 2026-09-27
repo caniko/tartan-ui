@@ -9,7 +9,7 @@
 Shared framework-neutral presentation contracts and Dioxus components for
 bekiper, Pink Raven, SynDB, and Plinth.
 
-The workspace currently targets stable Dioxus 0.7.9. Experimental Native/Blitz
+The workspace currently targets Dioxus 0.7.10. Experimental Native/Blitz
 preview support belongs in a separate gallery target and is not enabled by
 default in production consumers. The shared Dioxus crate itself has no
 renderer default; applications opt into `web`, `server`, or a native target.
@@ -31,6 +31,23 @@ accept already-mapped application values, expose explicit live-region semantics,
 and do not make requests or decide application state. Keep those boundaries
 when adapting Leptos products so the same contract remains usable from SSR,
 hydration, and browser-only routes.
+
+## Shared presentation contracts
+
+`Pagination` renders a caller-supplied range string and previous/next URLs; it
+does not calculate totals, offsets, or cursors. `DescriptionList` and
+`DescriptionItem` render semantic label/value pairs without changing the host
+layout (opt into `tartan-description-list--rows` for a shared grid). Use
+`DetailDisclosure` for escaped raw text, with `pre_class` if the host already
+styles its code blocks.
+
+`SelectField`, `CheckboxFilterGroup`, and `CheckboxFilterOptions` render
+controlled choices (`FilterOption`/`FilterChoice` in `tartan-ui-core`). Use the
+options-only component inside an existing fieldset or `<details>`; it does not
+add another group. Both the form `name` and every option `value` are owned by
+the consumer. Count labels are display-only, and an empty checkbox selection
+has no shared interpretation. The host retains query parsing, submission,
+authorization, and review decisions.
 
 The migration targets reserve Dioxus's opt-in `devtools` and `wasm-split`
 features. Devtools/Subsecond-style hotpatching is development-only; WASM
