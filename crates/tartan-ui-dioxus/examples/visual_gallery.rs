@@ -1,11 +1,13 @@
 use dioxus::prelude::*;
 use tartan_ui_core::{
-    AccessibleResource, Feedback, FeedbackKind, Identity, Metric, NavigationLink, ResourceSummary,
-    ThemePreference,
+    AccessibleResource, Feedback, FeedbackKind, FilterChoice, FilterOption, Identity, Metric,
+    NavigationLink, ResourceSummary, ThemePreference,
 };
 use tartan_ui_dioxus::{
-    CardGrid, DashboardHeader, FeedbackBanner, LoadingState, MediaAspect, MediaFit, MediaPreview,
-    MetricStrip, NavigationList, ProductShell, ResourceDashboard, TagList, ThemeToggle,
+    CardGrid, CheckboxFilterGroup, DashboardHeader, DescriptionItem, DescriptionList,
+    DetailDisclosure, FeedbackBanner, Field, LoadingState, MediaAspect, MediaFit, MediaPreview,
+    MetricStrip, NavigationList, Pagination, Panel, ProductShell, ResourceDashboard, SelectField,
+    TagList, ThemeToggle,
 };
 
 fn main() {
@@ -15,6 +17,9 @@ fn main() {
 #[component]
 fn App() -> Element {
     let mut preference = use_signal(|| ThemePreference::Dark);
+    let mut query = use_signal(String::new);
+    let mut kind = use_signal(|| "all".to_string());
+    let mut pdf = use_signal(|| true);
     let navigation = vec![
         NavigationLink {
             key: "overview".to_string(),
@@ -136,6 +141,35 @@ fn App() -> Element {
                             TagList { tags: vec!["web".to_string(), "native".to_string(), "accessible".to_string()] }
                             LoadingState { label: "Refreshing summary".to_string() }
                         }
+                    }
+                }
+                section { id: "settings", class: "tartan-gallery__section",
+                    Panel { title: "Shared form and detail primitives".to_string(),
+                        description: "These controls take caller-owned values, links, and handlers.".to_string(),
+                        Field { id: "gallery-query".to_string(), label: "Search term".to_string(),
+                            input { id: "gallery-query", name: "q", value: query(),
+                                oninput: move |event| query.set(event.value()) }
+                        }
+                        SelectField { id: "gallery-kind".to_string(), label: "Record kind".to_string(),
+                            value: kind(), options: vec![
+                                FilterOption { value: "all".to_string(), label: "All".to_string(), count: None },
+                                FilterOption { value: "plan".to_string(), label: "Plans".to_string(), count: Some(3) },
+                            ],
+                            on_change: move |value| kind.set(value),
+                        }
+                        CheckboxFilterGroup { legend: "Formats".to_string(), name: "format".to_string(),
+                            options: vec![FilterChoice {
+                                value: "pdf".to_string(), label: "PDF".to_string(), count: Some(2), checked: pdf(),
+                            }],
+                            on_change: move |(value, checked): (String, bool)| if value == "pdf" { pdf.set(checked) },
+                        }
+                        DescriptionList { class: "tartan-description-list--rows".to_string(),
+                            DescriptionItem { label: "Search".to_string(), "{query}" }
+                            DescriptionItem { label: "Kind".to_string(), "{kind}" }
+                        }
+                        DetailDisclosure { label: "Source text".to_string(), "A source value containing <markup> is escaped." }
+                        Pagination { label: "Example pages".to_string(), summary: "1–20 loaded".to_string(),
+                            previous_href: "#overview".to_string(), next_href: "#resources".to_string() }
                     }
                 }
             }
