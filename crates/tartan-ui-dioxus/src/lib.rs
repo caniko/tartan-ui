@@ -492,7 +492,8 @@ pub fn Pagination(
     }
 }
 
-/// Compose semantic label/value rows without imposing a product data model.
+/// Compose semantic label/value rows without imposing a product data model or
+/// layout. Pass class `tartan-description-list--rows` for a shared grid layout.
 #[component]
 pub fn DescriptionList(children: Element, #[props(default)] class: Option<String>) -> Element {
     let class = class.unwrap_or_default();
@@ -504,10 +505,12 @@ pub fn DescriptionItem(label: String, children: Element) -> Element {
     rsx! { div { class: "tartan-description-list__item", dt { "{label}" } dd { {children} } } }
 }
 
-/// Collapsed disclosure of caller-provided, escaped source text.
+/// Collapsed disclosure of caller-provided, escaped source text. An optional
+/// pre class lets hosts retain their existing code-block presentation.
 #[component]
-pub fn DetailDisclosure(label: String, children: Element) -> Element {
-    rsx! { details { class: "tartan-disclosure", summary { "{label}" }, pre { {children} } } }
+pub fn DetailDisclosure(label: String, children: Element, #[props(default)] pre_class: Option<String>) -> Element {
+    let pre_class = pre_class.unwrap_or_default();
+    rsx! { details { class: "tartan-disclosure", summary { "{label}" }, pre { class: "{pre_class}", {children} } } }
 }
 
 /// Controlled native select. Form name and ID are the caller-provided ID.
@@ -667,11 +670,12 @@ mod tests {
             DescriptionList {
                 DescriptionItem { label: "Source".to_string(), "{untrusted}" }
             }
-            DetailDisclosure { label: "Raw JSON".to_string(), "{raw}" }
+            DetailDisclosure { label: "Raw JSON".to_string(), pre_class: "code-block".to_string(), "{raw}" }
         });
         assert!(html.contains("<dt>Source</dt>"));
         assert!(html.contains("&#60;untrusted&#62;"), "{html}");
         assert!(html.contains("<summary>Raw JSON</summary>"));
+        assert!(html.contains("<pre class=\"code-block\">"));
         assert!(html.contains("&#60;raw&#62;"));
     }
 
