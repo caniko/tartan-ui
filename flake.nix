@@ -117,6 +117,10 @@
       package = buildCache.withRustCache {
         package = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
       };
+      uncachedPackage = rawCraneLib.buildPackage (commonArgs
+        // {
+          cargoArtifacts = checkCargoArtifacts;
+        });
       treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix);
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
@@ -128,9 +132,10 @@
       };
     in {
       packages.default = package;
+      packages.uncached = uncachedPackage;
       formatter = treefmtEval.config.build.wrapper;
       checks = {
-        default = package;
+        default = uncachedPackage;
         formatting = treefmtEval.config.build.check self;
         # Renderer features are mutually exclusive in this crate (for
         # example, `web` and `native-embedded` intentionally cannot coexist),
