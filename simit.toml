@@ -4,5 +4,7 @@ platform = "github"
 runtime = "nix"
 runner = "ubuntu-24.04"
 workspace = true
-required_gates = [{ id = "harbor-ci", run = "nix develop -c harbor-ci default" }]
+required_gates = [
+  { id = "harbor-ci", run = "nix develop -c harbor-ci default" },
+]
 all_features = false
