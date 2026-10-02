@@ -21,6 +21,9 @@ raw Blitz launches do not depend on a Dioxus asset-linker pass.
 
 - `tartan-ui-core` contains serializable presentation models with no UI
   framework dependency.
+- `tartan-ui-assets` exposes opt-in responsive layout styles without a renderer
+  dependency. Static generators and interactive components consume the same
+  stylesheet; applications supply semantic theme variables.
 - `tartan-ui-dioxus` contains shared Dioxus components and library assets.
 
 Theme preference values live in `tartan-ui-core`; `ThemeToggle` in the Dioxus
@@ -33,6 +36,12 @@ when adapting Leptos products so the same contract remains usable from SSR,
 hydration, and browser-only routes.
 
 ## Shared presentation contracts
+
+`SectionHeader` composes a page heading and wrapping action slot.
+`NavigationDisclosure` uses native disclosure behavior around caller-provided
+navigation. Hosts retain route selection and authorization policy. The shared
+layout stylesheet also supplies `tartan-flow`, `tartan-responsive-grid`, and
+`tartan-surface` classes for static HTML compositions.
 
 `Pagination` renders a caller-supplied range string and previous/next URLs; it
 does not calculate totals, offsets, or cursors. `DescriptionList` and

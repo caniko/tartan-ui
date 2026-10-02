@@ -57,6 +57,7 @@
         fileset = pkgs.lib.fileset.unions [
           (craneLib.fileset.commonCargoSources ./.)
           ./crates/tartan-ui-dioxus/assets
+          ./crates/tartan-ui-assets/assets
         ];
       };
       commonArgs = {
@@ -76,33 +77,44 @@
       # managed compiler-cache transport. The release package remains on the
       # fail-closed harbor-rs cache policy above.
       checkCargoArtifacts = rawCraneLib.buildDepsOnly commonArgs;
-      dioxusWebArgs = commonArgs // {
-        cargoArtifacts = checkCargoArtifacts;
-      };
-      dioxusServerArgs = commonArgs // {
-        cargoArtifacts = checkCargoArtifacts;
-      };
-      dioxusNativeArgs = commonArgs // {
-        cargoArtifacts = checkCargoArtifacts;
-        # Blitz' Stylo dependency generates properties during compilation.
-        nativeBuildInputs = commonArgs.nativeBuildInputs ++ [pkgs.python3];
-      };
-      dioxusDesktopArgs = commonArgs // {
-        cargoArtifacts = checkCargoArtifacts;
-        # dioxus-desktop uses Wry/WebKitGTK on Linux. Declaring these here
-        # keeps browser, server and Blitz-native checks free of desktop-only
-        # native dependencies.
-        buildInputs = commonArgs.buildInputs ++ (with pkgs; [
-          gtk3
-          webkitgtk_4_1
-        ]);
-      };
+      dioxusWebArgs =
+        commonArgs
+        // {
+          cargoArtifacts = checkCargoArtifacts;
+        };
+      dioxusServerArgs =
+        commonArgs
+        // {
+          cargoArtifacts = checkCargoArtifacts;
+        };
+      dioxusNativeArgs =
+        commonArgs
+        // {
+          cargoArtifacts = checkCargoArtifacts;
+          # Blitz' Stylo dependency generates properties during compilation.
+          nativeBuildInputs = commonArgs.nativeBuildInputs ++ [pkgs.python3];
+        };
+      dioxusDesktopArgs =
+        commonArgs
+        // {
+          cargoArtifacts = checkCargoArtifacts;
+          # dioxus-desktop uses Wry/WebKitGTK on Linux. Declaring these here
+          # keeps browser, server and Blitz-native checks free of desktop-only
+          # native dependencies.
+          buildInputs =
+            commonArgs.buildInputs
+            ++ (with pkgs; [
+              gtk3
+              webkitgtk_4_1
+            ]);
+        };
       mkDioxusCheck = args: command:
-        rawCraneLib.mkCargoDerivation (args // {
-          pnameSuffix = "-check";
-          buildPhaseCargoCommand = command;
-          installPhaseCommand = "mkdir -p $out";
-        });
+        rawCraneLib.mkCargoDerivation (args
+          // {
+            pnameSuffix = "-check";
+            buildPhaseCargoCommand = command;
+            installPhaseCommand = "mkdir -p $out";
+          });
       package = buildCache.withRustCache {
         package = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
       };
@@ -124,54 +136,60 @@
         # Renderer features are mutually exclusive in this crate (for
         # example, `web` and `native-embedded` intentionally cannot coexist),
         # so validation is an explicit matrix rather than `--all-features`.
-        core-tests = rawCraneLib.cargoTest (commonArgs // {
-          cargoArtifacts = checkCargoArtifacts;
-          cargoTestExtraArgs = "-p tartan-ui-core";
-        });
+        core-tests = rawCraneLib.cargoTest (commonArgs
+          // {
+            cargoArtifacts = checkCargoArtifacts;
+            cargoTestExtraArgs = "-p tartan-ui-core";
+          });
         dioxus-web = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web";
         dioxus-web-devtools = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,devtools";
         dioxus-web-wasm-split = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,wasm-split";
         dioxus-server = mkDioxusCheck dioxusServerArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features server";
         dioxus-native = mkDioxusCheck dioxusNativeArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features native";
         dioxus-desktop = mkDioxusCheck dioxusDesktopArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features desktop";
-        clippy = rawCraneLib.cargoClippy (dioxusWebArgs // {
-          # Crane's cargoClippy helper supplies --locked for the derivation;
-          # repeating it here makes Cargo reject the command line.
-          cargoClippyExtraArgs = "-p tartan-ui-dioxus --no-default-features --features web --all-targets -- --deny warnings";
-        });
+        clippy = rawCraneLib.cargoClippy (dioxusWebArgs
+          // {
+            # Crane's cargoClippy helper supplies --locked for the derivation;
+            # repeating it here makes Cargo reject the command line.
+            cargoClippyExtraArgs = "-p tartan-ui-dioxus --no-default-features --features web --all-targets -- --deny warnings";
+          });
         fmt = rawCraneLib.cargoFmt {inherit src;};
       };
       devShells.default = craneLib.devShell {
         checks = self.checks.${system};
-         packages = [harbor-rs.packages.${system}.harbor-ci] ++ (with pkgs; [
-          cargo-about
-          cargo-audit
-          cargo-cyclonedx
-          cargo-deny
-          cargo-llvm-cov
-          cargo-sbom
-          cargo-nextest
-          cosign
-          binaryen
-          dioxus-cli
-          file
-          gnutar
-          gzip
-          jq
-          minisign
-          nodejs
-          openssl
-          pkg-config
-          python3
-          pre-commit
-          rpm
-          util-linux
-          unzip
-          zip
-          reprepro
-          rust-analyzer
-          taplo
-         ] ++ pre-commit-check.enabledPackages);
+        packages =
+          [harbor-rs.packages.${system}.harbor-ci]
+          ++ (with pkgs;
+            [
+              cargo-about
+              cargo-audit
+              cargo-cyclonedx
+              cargo-deny
+              cargo-llvm-cov
+              cargo-sbom
+              cargo-nextest
+              cosign
+              binaryen
+              dioxus-cli
+              file
+              gnutar
+              gzip
+              jq
+              minisign
+              nodejs
+              openssl
+              pkg-config
+              python3
+              pre-commit
+              rpm
+              util-linux
+              unzip
+              zip
+              reprepro
+              rust-analyzer
+              taplo
+            ]
+            ++ pre-commit-check.enabledPackages);
         shellHook = pre-commit-check.shellHook;
       };
       apps.local-check-fast = {

@@ -28,6 +28,7 @@ native-embedded = []
 
 [dependencies]
 tartan-ui-core.workspace = true
+tartan-ui-assets.workspace = true
 dioxus.workspace = true
 web-sys.workspace = true
 

@@ -26,6 +26,7 @@ fn shared_styles() -> Element {
     {
         rsx! {
             style { dangerous_inner_html: SHARED_STYLES }
+            style { dangerous_inner_html: tartan_ui_assets::LAYOUT_STYLES }
         }
     }
 
@@ -33,6 +34,7 @@ fn shared_styles() -> Element {
     {
         rsx! {
             document::Stylesheet { href: SHARED_STYLES }
+            style { dangerous_inner_html: tartan_ui_assets::LAYOUT_STYLES }
         }
     }
 }
@@ -186,6 +188,47 @@ pub fn NavigationList(items: Vec<NavigationLink>, aria_label: String) -> Element
                     "{item.label}"
                 }
             }
+        }
+    }
+}
+
+/// A native, keyboard-accessible navigation group. The host supplies links and
+/// decides whether the current route should initially expand the disclosure.
+#[component]
+pub fn NavigationDisclosure(
+    label: String,
+    children: Element,
+    #[props(default)] open: bool,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! {
+        details { class: "tartan-navigation-disclosure {class}", open,
+            summary { "{label}" }
+            {children}
+        }
+    }
+}
+
+/// A page heading with optional actions that wrap independently of its text.
+#[component]
+pub fn SectionHeader(
+    heading: String,
+    #[props(default)] heading_id: Option<String>,
+    #[props(default)] eyebrow: Option<String>,
+    #[props(default)] description: Option<String>,
+    #[props(default)] actions: Option<Element>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! {
+        header { class: "tartan-section-header {class}",
+            div { class: "tartan-section-header__body",
+                if let Some(eyebrow) = eyebrow { p { class: "tartan-eyebrow", "{eyebrow}" } }
+                h1 { id: heading_id, "{heading}" }
+                if let Some(description) = description { p { class: "tartan-muted", "{description}" } }
+            }
+            if let Some(actions) = actions { div { class: "tartan-action-group", {actions} } }
         }
     }
 }
@@ -480,7 +523,11 @@ pub fn Pagination(
 ) -> Element {
     let class = class.unwrap_or_default();
     let link_class = link_class.unwrap_or_default();
-    let default_link_class = if link_class.is_empty() { "tartan-pagination__link--default" } else { "" };
+    let default_link_class = if link_class.is_empty() {
+        "tartan-pagination__link--default"
+    } else {
+        ""
+    };
     let previous_label = previous_label.unwrap_or_else(|| "Previous".to_string());
     let next_label = next_label.unwrap_or_else(|| "Next".to_string());
     rsx! {
@@ -508,7 +555,11 @@ pub fn DescriptionItem(label: String, children: Element) -> Element {
 /// Collapsed disclosure of caller-provided, escaped source text. An optional
 /// pre class lets hosts retain their existing code-block presentation.
 #[component]
-pub fn DetailDisclosure(label: String, children: Element, #[props(default)] pre_class: Option<String>) -> Element {
+pub fn DetailDisclosure(
+    label: String,
+    children: Element,
+    #[props(default)] pre_class: Option<String>,
+) -> Element {
     let pre_class = pre_class.unwrap_or_default();
     rsx! { details { class: "tartan-disclosure", summary { "{label}" }, pre { class: "{pre_class}", {children} } } }
 }
@@ -643,6 +694,40 @@ mod tests {
         assert!(html.contains("name=\"q\""));
         assert!(html.contains("role=\"alert\""));
         assert!(html.contains("Find records"));
+    }
+
+    #[test]
+    fn section_header_composes_wrapping_actions_and_escaped_content() {
+        let html = dioxus_ssr::render_element(rsx! {
+            SectionHeader {
+                heading: "Plans <private>".to_string(),
+                description: "Authorized records".to_string(),
+                class: "product-heading".to_string(),
+                actions: rsx! { a { href: "/plans/new", "New plan" } },
+            }
+        });
+        assert!(html.contains("tartan-section-header product-heading"));
+        assert!(html.contains("<h1>Plans &#60;private&#62;</h1>"));
+        assert!(html.contains("tartan-action-group"));
+        assert!(html.contains("href=\"/plans/new\""));
+    }
+
+    #[test]
+    fn navigation_disclosure_keeps_host_controlled_open_state() {
+        let html = dioxus_ssr::render_element(rsx! {
+            NavigationDisclosure {
+                label: "Discovery tools".to_string(), open: true,
+                class: "product-nav-group".to_string(),
+                NavigationList {
+                    items: vec![NavigationLink { key: "atlas".into(), label: "Atlas".into(), href: "/atlas".into(), current: true }],
+                    aria_label: "Discovery tools".to_string(),
+                }
+            }
+        });
+        assert!(html.contains("tartan-navigation-disclosure product-nav-group"));
+        assert!(html.contains("open"));
+        assert!(html.contains("<summary>Discovery tools</summary>"));
+        assert!(html.contains("aria-current=\"page\""));
     }
 
     #[test]

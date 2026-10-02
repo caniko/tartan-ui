@@ -1,0 +1,50 @@
+@layer tartan-layout {
+  :is(.tartan-flow, .tartan-responsive-grid, .tartan-section-header,
+      .tartan-action-group, .tartan-surface, .tartan-field, .tartan-navigation-disclosure) {
+    min-width: 0;
+  }
+  :is(.tartan-flow, .tartan-responsive-grid, .tartan-section-header, .tartan-surface) > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .tartan-flow { display: grid; align-content: start; gap: var(--tartan-flow-gap, 1rem); }
+  .tartan-responsive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tartan-card-min, 16rem)), 1fr));
+    align-items: start;
+    gap: var(--tartan-grid-gap, 1rem);
+  }
+  .tartan-surface {
+    box-sizing: border-box;
+    padding: var(--tartan-surface-padding, 1.25rem);
+    border: 1px solid var(--tartan-line, #ddd8cf);
+    border-radius: var(--tartan-surface-radius, .75rem);
+    color: var(--tartan-ink, #20201e);
+    background: var(--tartan-surface, #fff);
+  }
+  .tartan-section-header { display: flex; flex-wrap: wrap; align-items: start; gap: 1rem; }
+  .tartan-section-header__body { flex: 1 1 20rem; display: grid; gap: .5rem; }
+  .tartan-section-header__body > :is(h1, h2, p) { margin: 0; }
+  .tartan-action-group { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+  .tartan-action-group > :is(a, button) { min-height: 2.75rem; box-sizing: border-box; overflow-wrap: anywhere; }
+  .tartan-field > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    font: inherit;
+  }
+  .tartan-navigation-disclosure > summary {
+    display: flex; align-items: center; min-height: 2.75rem;
+    gap: .4rem; list-style: none; cursor: pointer; overflow-wrap: anywhere;
+  }
+  .tartan-navigation-disclosure > summary::-webkit-details-marker { display: none; }
+  .tartan-navigation-disclosure > summary::before { content: "+"; }
+  .tartan-navigation-disclosure[open] > summary::before { content: "−"; }
+  .tartan-navigation-disclosure .tartan-nav { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .tartan-navigation-disclosure .tartan-nav__link { min-width: 0; min-height: 2.75rem; overflow-wrap: anywhere; }
+  :is(.tartan-action-group, .tartan-navigation-disclosure) :is(a, button, summary):focus-visible {
+    outline: 2px solid var(--tartan-accent, #7c3f58); outline-offset: 2px;
+  }
+}
