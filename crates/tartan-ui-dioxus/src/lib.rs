@@ -480,7 +480,11 @@ pub fn Pagination(
 ) -> Element {
     let class = class.unwrap_or_default();
     let link_class = link_class.unwrap_or_default();
-    let default_link_class = if link_class.is_empty() { "tartan-pagination__link--default" } else { "" };
+    let default_link_class = if link_class.is_empty() {
+        "tartan-pagination__link--default"
+    } else {
+        ""
+    };
     let previous_label = previous_label.unwrap_or_else(|| "Previous".to_string());
     let next_label = next_label.unwrap_or_else(|| "Next".to_string());
     rsx! {
@@ -508,7 +512,11 @@ pub fn DescriptionItem(label: String, children: Element) -> Element {
 /// Collapsed disclosure of caller-provided, escaped source text. An optional
 /// pre class lets hosts retain their existing code-block presentation.
 #[component]
-pub fn DetailDisclosure(label: String, children: Element, #[props(default)] pre_class: Option<String>) -> Element {
+pub fn DetailDisclosure(
+    label: String,
+    children: Element,
+    #[props(default)] pre_class: Option<String>,
+) -> Element {
     let pre_class = pre_class.unwrap_or_default();
     rsx! { details { class: "tartan-disclosure", summary { "{label}" }, pre { class: "{pre_class}", {children} } } }
 }
