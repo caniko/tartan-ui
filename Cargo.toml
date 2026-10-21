@@ -4,6 +4,7 @@ members = [
   "crates/tartan-ui-core",
   "crates/tartan-ui-assets",
   "crates/tartan-ui-dioxus",
+  "crates/tartan-ui-annotate",
 ]
 
 [workspace.package]
@@ -20,6 +21,7 @@ all-features = false
 tartan-ui-core = { path = "crates/tartan-ui-core" }
 tartan-ui-assets = { path = "crates/tartan-ui-assets" }
 tartan-ui-dioxus = { path = "crates/tartan-ui-dioxus", default-features = false }
+tartan-ui-annotate = { path = "crates/tartan-ui-annotate" }
 serde = { version = "1", features = ["derive"] }
 dioxus = { version = "=0.7.10", default-features = false, features = ["lib"] }
 web-sys = { version = "0.3.103", features = ["Window", "Location"] }

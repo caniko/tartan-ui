@@ -25,6 +25,16 @@ raw Blitz launches do not depend on a Dioxus asset-linker pass.
   dependency. Static generators and interactive components consume the same
   stylesheet; applications supply semantic theme variables.
 - `tartan-ui-dioxus` contains shared Dioxus components and library assets.
+- `tartan-ui-annotate` contains renderer-neutral editing primitives for
+  annotation and curation tools, plus an opt-in SVG handle layer.
+
+`tartan-ui-annotate` has no dependencies by default: `Viewport` (pan, zoom,
+fit, cursor-anchored zoom, SVG `meet` pointer mapping), `PolygonDraft` (an
+open ring with vertex insert, delete down to a triangle, nudge and drag) and
+point-in-polygon/segment hit geometry. Canvas renderers use only this core.
+The `dioxus` feature adds `PolygonHandles`, vertex and edge-midpoint handles
+drawn inside a host `<svg>` with `tartan-annotate-*` classes. Hosts keep drag
+tracking, revision binding, persistence, keyboard policy and theming.
 
 Theme preference values live in `tartan-ui-core`; `ThemeToggle` in the Dioxus
 crate cycles the value without owning persistence or document/window policy.

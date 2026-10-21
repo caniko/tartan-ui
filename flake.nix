@@ -139,7 +139,7 @@
         core-tests = rawCraneLib.cargoTest (commonArgs
           // {
             cargoArtifacts = checkCargoArtifacts;
-            cargoTestExtraArgs = "-p tartan-ui-core";
+            cargoTestExtraArgs = "-p tartan-ui-core -p tartan-ui-annotate";
           });
         dioxus-web = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web";
         dioxus-web-devtools = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,devtools";
@@ -147,6 +147,7 @@
         dioxus-server = mkDioxusCheck dioxusServerArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features server";
         dioxus-native = mkDioxusCheck dioxusNativeArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features native";
         dioxus-desktop = mkDioxusCheck dioxusDesktopArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features desktop";
+        annotate-dioxus = mkDioxusCheck dioxusWebArgs "cargoWithProfile test --locked -p tartan-ui-annotate --features dioxus";
         clippy = rawCraneLib.cargoClippy (dioxusWebArgs
           // {
             # Crane's cargoClippy helper supplies --locked for the derivation;
@@ -258,6 +259,7 @@
               # `--all-features` is invalid because web and native embedding
               # are deliberately mutually exclusive.
               cargo test -p tartan-ui-core --locked
+              cargo test -p tartan-ui-annotate --features dioxus --locked
               cargo test -p tartan-ui-dioxus --no-default-features --features web --locked
               cargo check -p tartan-ui-dioxus --no-default-features --features web,devtools --locked
               cargo check -p tartan-ui-dioxus --no-default-features --features web,wasm-split --locked
@@ -265,6 +267,7 @@
               cargo check -p tartan-ui-dioxus --no-default-features --features native --locked
               cargo check -p tartan-ui-dioxus --no-default-features --features desktop --locked
               cargo clippy -p tartan-ui-dioxus --no-default-features --features web --all-targets --locked -- --deny warnings
+              cargo clippy -p tartan-ui-annotate --features dioxus --all-targets --locked -- --deny warnings
               cargo deny check bans licenses sources
               cargo package --workspace --allow-dirty --list >/dev/null
             '';
