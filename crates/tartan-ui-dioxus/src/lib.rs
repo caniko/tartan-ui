@@ -8,8 +8,8 @@
 
 use dioxus::prelude::*;
 use tartan_ui_core::{
-    AccessibleResource, Feedback, FeedbackKind, FilterChoice, FilterOption, Identity, Metric,
-    NavigationLink, Progress, ResourceLink, ResourceSummary, ThemePreference,
+    AccessibleResource, FacetGroup, Feedback, FeedbackKind, FilterChoice, FilterOption, Identity,
+    Metric, NavigationLink, Progress, ResourceLink, ResourceSummary, Suggestion, ThemePreference,
 };
 
 #[cfg(all(feature = "web", feature = "native-embedded"))]
@@ -611,17 +611,26 @@ pub fn CheckboxFilterGroup(
 /// Controlled checkbox labels for callers that already own a fieldset or a
 /// disclosure. All options share the supplied form name; the caller decides
 /// whether to submit the form or update local state on change.
+///
+/// `title_prefix` adds a `title="{prefix}{value}"` tooltip to each option and
+/// `counts_truncated` renders counts as lower bounds (`10000+`).
 #[component]
 pub fn CheckboxFilterOptions(
     name: String,
     options: Vec<FilterChoice>,
     #[props(default)] on_change: Option<EventHandler<(String, bool)>>,
     #[props(default)] class: Option<String>,
+    #[props(default)] title_prefix: Option<String>,
+    #[props(default)] counts_truncated: bool,
 ) -> Element {
     let class = class.unwrap_or_default();
+    let plus = if counts_truncated { "+" } else { "" };
     rsx! {
         for option in options {
-            label { key: "{option.value}", class: "{class}",
+            label {
+                key: "{option.value}",
+                class: "{class}",
+                title: title_prefix.as_ref().map(|prefix| format!("{prefix}{}", option.value)),
                 input { r#type: "checkbox", name: "{name}", value: "{option.value}", checked: option.checked,
                     onchange: {
                         let value = option.value.clone();
@@ -633,7 +642,193 @@ pub fn CheckboxFilterOptions(
                     }
                 }
                 " {option.label}"
-                if let Some(count) = option.count { " ({count})" }
+                if let Some(count) = option.count { " ({count}{plus})" }
+            }
+        }
+    }
+}
+
+/// Sidebar editor for facet selections. Editable categories toggle through
+/// `on_toggle((key, value, checked))`; the caller rewrites its query and
+/// passes fresh groups back. Categories set in the query text are read-only.
+#[component]
+pub fn FacetSidebar(
+    groups: Vec<FacetGroup>,
+    aria_label: String,
+    on_toggle: EventHandler<(String, String, bool)>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let class = class.unwrap_or_default();
+    rsx! {
+        nav { class: "tartan-facet-sidebar {class}", aria_label: "{aria_label}",
+            for group in groups {
+                NavigationDisclosure {
+                    key: "{group.title}",
+                    label: group.title.clone(),
+                    open: true,
+                    class: "tartan-facet-group".to_string(),
+                    for category in group.categories {
+                        FacetCategoryFields { key: "{category.key}", category, on_toggle }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn FacetCategoryFields(
+    category: tartan_ui_core::FacetCategory,
+    on_toggle: EventHandler<(String, String, bool)>,
+) -> Element {
+    let key = category.key.clone();
+    rsx! {
+        fieldset { class: "tartan-facet-category",
+            legend {
+                "{category.label} "
+                code { class: "tartan-facet-key", "{category.key}:" }
+            }
+            if category.editable {
+                CheckboxFilterOptions {
+                    name: category.key.clone(),
+                    options: category.options.clone(),
+                    title_prefix: format!("{key}:"),
+                    counts_truncated: category.counts_truncated,
+                    on_change: move |(value, checked): (String, bool)| {
+                        on_toggle.call((key.clone(), value, checked));
+                    },
+                }
+            } else {
+                ul { class: "tartan-facet-values",
+                    for option in category.options.iter().filter(|option| option.checked) {
+                        li { key: "{option.value}", "{option.label}" }
+                    }
+                }
+                p { class: "tartan-facet-note", "Set in the query text" }
+            }
+        }
+    }
+}
+
+/// Generic ARIA combobox for query text. The caller owns the value, the
+/// suggestions, validation and any fetching or debouncing; this component
+/// only handles open state, the highlighted row and keyboard interaction.
+/// Enter picks the highlighted suggestion, otherwise submits the value.
+#[component]
+pub fn QueryCombobox(
+    id: String,
+    label: String,
+    value: String,
+    #[props(default)] placeholder: String,
+    #[props(default)] hint: Option<String>,
+    suggestions: Vec<Suggestion>,
+    #[props(default)] errors: Vec<String>,
+    on_input: EventHandler<String>,
+    on_pick: EventHandler<Suggestion>,
+    on_submit: EventHandler<String>,
+    #[props(default)] on_focus: Option<EventHandler<()>>,
+) -> Element {
+    let mut open = use_signal(|| false);
+    // `None` until typing or arrow keys: focusing the box and pressing Enter
+    // submits instead of picking the first suggestion.
+    let mut active = use_signal(|| None::<usize>);
+    let count = suggestions.len();
+    let has_errors = !errors.is_empty();
+    let expanded = open() && !has_errors && count > 0;
+    let active_index = active().filter(|index| expanded && *index < count);
+    let keydown_suggestions = suggestions.clone();
+    let keydown_value = value.clone();
+    rsx! {
+        div { class: "tartan-combobox",
+            label { class: "tartan-field__label", r#for: "{id}", "{label}" }
+            input {
+                id: "{id}",
+                class: "tartan-combobox-input",
+                r#type: "text",
+                enterkeyhint: "search",
+                placeholder: "{placeholder}",
+                value: "{value}",
+                autocomplete: "off",
+                spellcheck: "false",
+                role: "combobox",
+                aria_expanded: expanded.to_string(),
+                aria_controls: "{id}-listbox",
+                aria_autocomplete: "list",
+                aria_activedescendant: active_index.map(|index| format!("{id}-option-{index}")),
+                aria_invalid: has_errors.to_string(),
+                oninput: move |event| {
+                    active.set(Some(0));
+                    open.set(true);
+                    on_input.call(event.value());
+                },
+                onfocus: move |_| {
+                    active.set(None);
+                    open.set(true);
+                    if let Some(on_focus) = on_focus {
+                        on_focus.call(());
+                    }
+                },
+                // Reopen after Escape without leaving the focused box.
+                onclick: move |_| open.set(true),
+                onblur: move |_| open.set(false),
+                onkeydown: move |event| {
+                    let key = event.key().to_string();
+                    if key == "ArrowDown" && count > 0 {
+                        event.prevent_default();
+                        active.set(Some(active().map_or(0, |index| (index + 1) % count)));
+                        open.set(true);
+                    } else if key == "ArrowUp" && count > 0 {
+                        event.prevent_default();
+                        active.set(Some(active().map_or(count - 1, |index| (index + count - 1) % count)));
+                        open.set(true);
+                    } else if key == "Enter" {
+                        event.prevent_default();
+                        match active().filter(|_| open() && count > 0) {
+                            Some(index) => on_pick.call(keydown_suggestions[index % count].clone()),
+                            None => on_submit.call(keydown_value.clone()),
+                        }
+                    } else if key == "Escape" {
+                        open.set(false);
+                    }
+                },
+            }
+            if let Some(hint) = hint { p { class: "tartan-field__hint", "{hint}" } }
+            if has_errors {
+                div { class: "tartan-combobox-errors", role: "alert",
+                    for error in errors {
+                        p { key: "{error}", "{error}" }
+                    }
+                }
+            }
+            if count > 0 {
+                ul {
+                    id: "{id}-listbox",
+                    class: "tartan-combobox-list",
+                    role: "listbox",
+                    aria_label: "{label} suggestions",
+                    hidden: !expanded,
+                    for (index, suggestion) in suggestions.into_iter().enumerate() {
+                        li {
+                            key: "{index}:{suggestion.label}",
+                            id: "{id}-option-{index}",
+                            role: "option",
+                            aria_selected: (Some(index) == active_index).to_string(),
+                            class: if Some(index) == active_index { "tartan-combobox-option is-active" } else { "tartan-combobox-option" },
+                            // mousedown keeps focus in the input, so blur cannot
+                            // close the list before the pick lands.
+                            onmousedown: {
+                                let suggestion = suggestion.clone();
+                                move |event| {
+                                    event.prevent_default();
+                                    open.set(false);
+                                    on_pick.call(suggestion.clone());
+                                }
+                            },
+                            strong { "{suggestion.label}" }
+                            if let Some(detail) = &suggestion.detail { span { class: "tartan-muted", " {detail}" } }
+                        }
+                    }
+                }
             }
         }
     }
@@ -816,5 +1011,106 @@ mod tests {
         assert!(html.contains("value=\"pdf\" checked"));
         assert!(html.contains("PDF (2)"));
         assert!(html.contains("<summary>File types</summary>"));
+    }
+
+    fn facet_fixture() -> Vec<FacetGroup> {
+        let option = |value: &str, count, checked| FilterChoice {
+            value: value.to_string(),
+            label: value.to_uppercase(),
+            count,
+            checked,
+        };
+        vec![FacetGroup {
+            title: "Provenance".to_string(),
+            categories: vec![
+                tartan_ui_core::FacetCategory {
+                    key: "period".to_string(),
+                    label: "Period".to_string(),
+                    options: vec![
+                        option("1900", Some(10000), true),
+                        option("1950", None, false),
+                    ],
+                    editable: true,
+                    counts_truncated: true,
+                },
+                tartan_ui_core::FacetCategory {
+                    key: "kind".to_string(),
+                    label: "Kind".to_string(),
+                    options: vec![option("plan", Some(2), true), option("map", Some(1), false)],
+                    editable: false,
+                    counts_truncated: false,
+                },
+            ],
+        }]
+    }
+
+    #[test]
+    fn facet_sidebar_renders_keys_titles_and_read_only_categories() {
+        #[component]
+        fn Fixture() -> Element {
+            rsx! { FacetSidebar { groups: facet_fixture(), aria_label: "Filters".to_string(), on_toggle: |_| {} } }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture {} });
+        assert!(html.contains("aria-label=\"Filters\""), "{html}");
+        assert!(html.contains("class=\"tartan-facet-category\""));
+        assert!(html.contains("period:</code>"), "{html}");
+        assert!(html.contains("kind:</code>"));
+        assert!(html.contains("title=\"period:1900\""));
+        assert!(html.contains("value=\"1900\" checked"));
+        assert!(html.contains("1900 (10000+)"), "{html}");
+        // Read-only category: plain text for checked values, no checkbox.
+        assert!(html.contains("Set in the query text"));
+        assert!(html.contains("<li>PLAN</li>"), "{html}");
+        assert!(!html.contains("MAP"));
+        assert!(!html.contains("name=\"kind\""));
+    }
+
+    #[test]
+    fn query_combobox_exposes_combobox_listbox_and_errors() {
+        #[component]
+        fn Fixture() -> Element {
+            rsx! {
+                        QueryCombobox {
+                            id: "q".to_string(), label: "Search".to_string(), value: "per".to_string(),
+                            hint: "Try period:1900".to_string(),
+                            suggestions: vec![
+                                Suggestion { insert: "period:".to_string(), label: "period:".to_string(), detail: Some("Period".to_string()) },
+                                Suggestion { insert: "plan".to_string(), label: "plan".to_string(), detail: None },
+                            ],
+                            errors: vec!["Unclosed quote".to_string()],
+                            on_input: |_| {}, on_pick: |_| {}, on_submit: |_| {},
+                        }
+            }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture {} });
+        assert!(html.contains("role=\"combobox\""), "{html}");
+        assert!(html.contains("aria-expanded=\"false\""));
+        assert!(html.contains("aria-controls=\"q-listbox\""));
+        assert!(html.contains("aria-autocomplete=\"list\""));
+        assert!(html.contains("for=\"q\""));
+        assert!(html.contains("role=\"listbox\""));
+        assert!(html.contains("id=\"q-option-0\"") && html.contains("id=\"q-option-1\""));
+        assert_eq!(html.matches("role=\"option\"").count(), 2);
+        assert!(html.contains("role=\"alert\""));
+        assert!(html.contains("Unclosed quote"));
+        assert!(html.contains("Try period:1900"));
+    }
+
+    #[test]
+    fn query_combobox_without_errors_or_suggestions_has_no_alert_or_listbox() {
+        #[component]
+        fn Fixture() -> Element {
+            rsx! {
+                        QueryCombobox {
+                            id: "q".to_string(), label: "Search".to_string(), value: String::new(),
+                            suggestions: vec![],
+                            on_input: |_| {}, on_pick: |_| {}, on_submit: |_| {},
+                        }
+            }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture {} });
+        assert!(html.contains("role=\"combobox\""));
+        assert!(!html.contains("role=\"alert\""));
+        assert!(!html.contains("role=\"listbox\""));
     }
 }

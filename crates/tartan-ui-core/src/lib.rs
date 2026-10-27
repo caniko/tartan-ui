@@ -6,6 +6,15 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod facet;
+pub mod query;
+
+pub use facet::{FacetCategory, FacetGroup, Suggestion};
+pub use query::{
+    AnnotatedLeaf, FacetLeaf, FacetSelection, QueryExpr, annotated_leaves, facet_selection,
+    leaf_count, leaves, quote_value, remove_leaf, toggle_facet,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity {
     pub display_name: String,
