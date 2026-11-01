@@ -140,9 +140,9 @@ pub struct Feedback {
 
 /// The product-neutral theme preference used by shared controls.
 ///
-/// Applications own persistence and document-level theme application. The
-/// shared crate only provides the stable value and its keyboard-friendly
-/// cycle order so web and native consumers do not drift.
+/// `System` follows `prefers-color-scheme`; `Light` and `Dark` force a mode via
+/// `<html data-theme>`. The serde representation (`"System"`, `"Light"`,
+/// `"Dark"`) and the lowercase `as_str` forms are stable storage contracts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ThemePreference {
     #[default]
@@ -165,6 +165,16 @@ impl ThemePreference {
             Self::System => "system",
             Self::Light => "light",
             Self::Dark => "dark",
+        }
+    }
+
+    /// Inverse of [`as_str`](Self::as_str); `None` for unknown values.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "system" => Some(Self::System),
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            _ => None,
         }
     }
 }
@@ -212,5 +222,33 @@ mod tests {
         assert_eq!(ThemePreference::System.next(), ThemePreference::Light);
         assert_eq!(ThemePreference::Light.next(), ThemePreference::Dark);
         assert_eq!(ThemePreference::Dark.next(), ThemePreference::System);
+    }
+
+    #[test]
+    fn theme_preference_round_trips_stable_names() {
+        for preference in [
+            ThemePreference::System,
+            ThemePreference::Light,
+            ThemePreference::Dark,
+        ] {
+            assert_eq!(
+                ThemePreference::parse(preference.as_str()),
+                Some(preference)
+            );
+            let json = serde_json::to_string(&preference).unwrap();
+            assert_eq!(json, format!("\"{preference:?}\""));
+            assert_eq!(
+                serde_json::from_str::<ThemePreference>(&json).unwrap(),
+                preference
+            );
+        }
+        assert_eq!(ThemePreference::parse("Dark"), None);
+        assert_eq!(ThemePreference::parse(""), None);
+    }
+
+    #[test]
+    fn theme_preference_full_cycle_returns_to_start() {
+        let start = ThemePreference::default();
+        assert_eq!(start.next().next().next(), start);
     }
 }
