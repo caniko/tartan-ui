@@ -16,6 +16,7 @@ from urllib.request import urlopen
 
 TARGET = "tartan-ui/library"
 VISUAL_ROOT = Path("target/visual")
+THEMES = ("light", "dark")
 VIEWPORTS = (
     ("desktop", 1440, 900),
     ("tablet-landscape", 1024, 768),
@@ -67,14 +68,15 @@ def capture_job(revision: str, dirty: bool) -> dict[str, object]:
         "dirty": dirty,
         "cells": [
             {
-                "id": f"gallery/{name}/dark/en-US",
+                "id": f"gallery/{name}/{theme}/en-US",
                 "path": "/",
                 "state": "gallery",
                 "viewport": {"width": width, "height": height, "dpr": 1},
-                "theme": "dark",
+                "theme": theme,
                 "locale": "en-US",
                 "presets": ["ui-regression"],
             }
+            for theme in THEMES
             for name, width, height in VIEWPORTS
         ],
     }

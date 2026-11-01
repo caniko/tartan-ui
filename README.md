@@ -36,8 +36,34 @@ The `dioxus` feature adds `PolygonHandles`, vertex and edge-midpoint handles
 drawn inside a host `<svg>` with `tartan-annotate-*` classes. Hosts keep drag
 tracking, revision binding, persistence, keyboard policy and theming.
 
-Theme preference values live in `tartan-ui-core`; `ThemeToggle` in the Dioxus
-crate cycles the value without owning persistence or document/window policy.
+## Theme
+
+The stylesheets consume the `--tb-*` custom properties emitted by the
+nix-theme-broker web renderer and expose them as `--tartan-*` aliases
+(`--tartan-paper: var(--tb-ui-background, #ffffff)` and so on). The fallback
+literals are the Blackbox light values, so the crates work, in light mode,
+without any broker stylesheet; tartan-ui does not depend on the broker. Load the
+broker CSS to get dark mode: `prefers-color-scheme` applies unless
+`<html data-theme="light|dark">` forces a mode.
+
+Style rules are deliberately minimal: 1px borders, a single `--tartan-radius`
+(6px), no shadows or gradients, a 4px spacing scale (`--tartan-space-*`), and
+the accent only for primary actions, selection and the focus ring.
+
+`ThemePreference` (`tartan-ui-core`: `System`, `Light`, `Dark`) is the shared
+value. `ThemeToggle` (`tartan-ui-dioxus`) cycles it, writes `data-theme` on
+`<html>` (removed for `System`), persists it in `localStorage` as
+`tartan-theme` and restores it on mount. It needs no props; pass `preference`
+to control the displayed value and `on_toggle` to observe changes. Put
+`THEME_INIT_SCRIPT` in the document head to restore before first paint.
+
+## Icons
+
+`tartan_ui_dioxus::icons` vendors 15 [Lucide](https://lucide.dev) icons as
+inline SVG components (`size` 16, `stroke_width` 1.5, `currentColor`, hidden
+from assistive technology unless a `label` is given). Lucide is ISC-licensed;
+see `LICENSE-lucide` (which also carries the MIT notice for the Feather-derived
+glyphs).
 
 The first migration primitives are `FeedbackBanner` and `LoadingState`. They
 accept already-mapped application values, expose explicit live-region semantics,
