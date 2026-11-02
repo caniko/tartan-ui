@@ -2,7 +2,7 @@
   description = "Rust project";
 
   inputs = {
-    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=fac8049316846e0ef1c1e6acd92aed7a337b333a";
+    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=0281ddd805895c340bff91336c329bd3ae6240ce";
     nixpkgs.follows = "harbor-rs/nixpkgs";
     rust-overlay.follows = "harbor-rs/rust-overlay";
     crane.follows = "harbor-rs/crane";
@@ -48,6 +48,8 @@
         cacheRoot = null;
         namespaceScope = "canix-rust";
         namespaceGeneration = 5;
+        # Hosted CI runners have no managed sccache transport.
+        ephemeralFallback = true;
       };
       # Dioxus' `asset!` macro resolves assets while Cargo compiles. Crane's
       # default Cargo source filter excludes CSS, so keep the shared stylesheet
