@@ -6,6 +6,8 @@
 // allocation simplification.
 #![allow(clippy::useless_format)]
 
+pub mod icons;
+
 use dioxus::prelude::*;
 use tartan_ui_core::{
     AccessibleResource, FacetGroup, Feedback, FeedbackKind, FilterChoice, FilterOption, Identity,
@@ -110,27 +112,83 @@ pub fn ProductShell(
     }
 }
 
-/// A renderer-neutral theme control. The host owns persistence and applies
-/// the returned preference to its document or native window.
+/// `localStorage` key holding the persisted [`ThemePreference`].
+pub const THEME_STORAGE_KEY: &str = "tartan-theme";
+
+/// Inline `<head>` script that restores a persisted light/dark choice before
+/// first paint. Optional: [`ThemeToggle`] restores on mount without it.
+pub const THEME_INIT_SCRIPT: &str = "try{var t=localStorage.getItem('tartan-theme');\
+if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}";
+
+const THEME_RESTORE_SCRIPT: &str =
+    "try{dioxus.send(localStorage.getItem('tartan-theme')||'')}catch(e){dioxus.send('')}";
+
+/// JavaScript that writes `preference` to `<html data-theme>` (removed for
+/// `System`, so `prefers-color-scheme` applies) and persists it.
+pub fn theme_apply_script(preference: ThemePreference) -> String {
+    let value = preference.as_str();
+    let attribute = match preference {
+        ThemePreference::System => "r.removeAttribute('data-theme')".to_string(),
+        _ => format!("r.setAttribute('data-theme','{value}')"),
+    };
+    format!(
+        "try{{var r=document.documentElement;{attribute};\
+         localStorage.setItem('{THEME_STORAGE_KEY}','{value}')}}catch(e){{}}"
+    )
+}
+
+fn theme_next_label(next: ThemePreference) -> &'static str {
+    match next {
+        ThemePreference::System => "Switch to system theme",
+        ThemePreference::Light => "Switch to light theme",
+        ThemePreference::Dark => "Switch to dark theme",
+    }
+}
+
+/// Cycles system, light and dark. A click writes `data-theme` on `<html>`,
+/// persists the choice in `localStorage` (`tartan-theme`) and calls
+/// `on_toggle`. Without `preference` the toggle owns its state and restores the
+/// persisted value on mount (client only; SSR renders `System`). With
+/// `preference` the host controls the displayed value. The icon shows the
+/// current preference; the accessible name announces the next one.
 #[component]
 pub fn ThemeToggle(
-    preference: ThemePreference,
-    on_toggle: EventHandler<ThemePreference>,
+    #[props(default)] preference: Option<ThemePreference>,
+    #[props(default)] on_toggle: Option<EventHandler<ThemePreference>>,
 ) -> Element {
-    let next = preference.next();
-    let label = match preference {
-        ThemePreference::System => "Use light theme",
-        ThemePreference::Light => "Use dark theme",
-        ThemePreference::Dark => "Use system theme",
-    };
+    let mut stored = use_signal(|| preference.unwrap_or_default());
+    use_effect(move || {
+        spawn(async move {
+            if let Some(preference) = preference {
+                let _ = document::eval(&theme_apply_script(preference));
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
+                && let Some(restored) = ThemePreference::parse(&value)
+            {
+                stored.set(restored);
+            }
+        });
+    });
+    let current = preference.unwrap_or_else(|| *stored.read());
+    let next = current.next();
     rsx! {
         button {
             class: "tartan-theme-toggle",
             type: "button",
-            aria_label: "{label}",
-            aria_pressed: preference != ThemePreference::System,
-            onclick: move |_| on_toggle.call(next),
-            "Theme: {preference.as_str()}"
+            aria_label: theme_next_label(next),
+            title: theme_next_label(next),
+            "data-theme-preference": current.as_str(),
+            onclick: move |_| {
+                stored.set(next);
+                let _ = document::eval(&theme_apply_script(next));
+                if let Some(on_toggle) = on_toggle {
+                    on_toggle.call(next);
+                }
+            },
+            match current {
+                ThemePreference::System => rsx! { icons::Monitor {} },
+                ThemePreference::Light => rsx! { icons::Sun {} },
+                ThemePreference::Dark => rsx! { icons::Moon {} },
+            }
         }
     }
 }
@@ -1112,5 +1170,44 @@ mod tests {
         assert!(html.contains("role=\"combobox\""));
         assert!(!html.contains("role=\"alert\""));
         assert!(!html.contains("role=\"listbox\""));
+    }
+
+    fn render_toggle(preference: Option<ThemePreference>) -> String {
+        #[component]
+        fn Fixture(preference: Option<ThemePreference>) -> Element {
+            rsx! { ThemeToggle { preference } }
+        }
+        dioxus_ssr::render_element(rsx! { Fixture { preference } })
+    }
+
+    #[test]
+    fn theme_toggle_names_the_next_state_and_shows_the_current_icon() {
+        let cases = [
+            (ThemePreference::System, "Switch to light theme"),
+            (ThemePreference::Light, "Switch to dark theme"),
+            (ThemePreference::Dark, "Switch to system theme"),
+        ];
+        for (current, label) in cases {
+            let html = render_toggle(Some(current));
+            assert!(html.contains(&format!("aria-label=\"{label}\"")), "{html}");
+            assert!(html.contains(&format!("data-theme-preference=\"{}\"", current.as_str())));
+            assert!(
+                html.contains("<svg") && html.contains("aria-hidden=\"true\""),
+                "{html}"
+            );
+        }
+        // Uncontrolled SSR output starts at System (restored on the client).
+        assert!(render_toggle(None).contains("Switch to light theme"));
+    }
+
+    #[test]
+    fn theme_scripts_set_or_clear_the_attribute_and_persist() {
+        let system = theme_apply_script(ThemePreference::System);
+        assert!(system.contains("removeAttribute('data-theme')"), "{system}");
+        assert!(system.contains("setItem('tartan-theme','system')"));
+        let dark = theme_apply_script(ThemePreference::Dark);
+        assert!(dark.contains("setAttribute('data-theme','dark')"), "{dark}");
+        assert!(dark.contains("setItem('tartan-theme','dark')"));
+        assert!(THEME_INIT_SCRIPT.contains("tartan-theme"));
     }
 }
