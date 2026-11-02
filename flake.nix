@@ -60,6 +60,7 @@
           (craneLib.fileset.commonCargoSources ./.)
           ./crates/tartan-ui-dioxus/assets
           ./crates/tartan-ui-assets/assets
+          ./crates/tartan-ui-dioxus/examples/gallery-theme.css
         ];
       };
       commonArgs = {
