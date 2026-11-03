@@ -909,6 +909,9 @@ fn sync_input(id: &str, caret_utf16: Option<usize>) {
 /// and become an alert when Enter is pressed while `blocking`. Enter picks the
 /// highlighted row (row 0 under `autoselect`), otherwise submits; Tab accepts
 /// the highlighted row (or row 0) while rows are showing.
+///
+/// A pick keeps the list open, so a completion can lead straight into the
+/// next step; a pick that navigates or submits replaces the page anyway.
 #[component]
 pub fn QueryCombobox(
     id: String,
@@ -1066,6 +1069,7 @@ pub fn QueryCombobox(
                             }
                             KeyAction::Pick(index) => {
                                 event.prevent_default();
+                                active.set(None);
                                 on_pick.call(keydown_suggestions[index].clone());
                             }
                             KeyAction::Submit => {
@@ -1118,7 +1122,7 @@ pub fn QueryCombobox(
                                     let suggestion = suggestion.clone();
                                     move |event| {
                                         event.prevent_default();
-                                        open.set(false);
+                                        active.set(None);
                                         on_pick.call(suggestion.clone());
                                     }
                                 },
