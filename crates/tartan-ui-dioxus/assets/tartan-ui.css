@@ -56,8 +56,24 @@
 .tartan-combobox-input[aria-invalid="true"] { border-color: var(--tartan-danger); }
 .tartan-combobox-errors { margin-top: var(--tartan-space-1); font-size: .875rem; font-weight: 600; color: var(--tartan-danger); }
 .tartan-combobox-errors p { margin: 0; }
-.tartan-combobox-list { position: absolute; z-index: 10; inset-inline: 0; margin: var(--tartan-space-1) 0 0; padding: var(--tartan-space-1); max-height: 18rem; overflow-y: auto; list-style: none; border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: var(--tartan-paper); }
-.tartan-combobox-list[hidden] { display: none; }
+.tartan-combobox-popup { position: absolute; z-index: 10; inset-inline: 0; margin: var(--tartan-space-1) 0 0; border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: var(--tartan-paper); overflow: hidden; }
+.tartan-combobox-popup[hidden] { display: none; }
+.tartan-combobox-list { margin: 0; padding: var(--tartan-space-1); max-height: 18rem; overflow-y: auto; list-style: none; }
+.tartan-combobox-group { padding: var(--tartan-space-2) var(--tartan-space-2) var(--tartan-space-1); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--tartan-muted); }
+.tartan-combobox-footer { padding: var(--tartan-space-2) var(--tartan-space-3); border-top: 1px solid var(--tartan-line); font-size: .8125rem; color: var(--tartan-muted); }
+.tartan-combobox-field { position: relative; }
+.tartan-combobox-mirror, .tartan-combobox-input.has-marks { font: inherit; letter-spacing: inherit; }
+.tartan-combobox-mirror { position: absolute; inset: 0; box-sizing: border-box; padding: var(--tartan-space-2) var(--tartan-space-3); border: 1px solid transparent; border-radius: var(--tartan-radius); overflow: hidden; white-space: pre; pointer-events: none; color: var(--tartan-muted); background: var(--tartan-paper); }
+/* The mirror paints the text; the input keeps only the caret and selection.
+   Marks change colour only: a different weight would shift glyphs off the caret.
+   Consumers that restyle the input padding must restyle the mirror too. */
+.tartan-combobox-input.has-marks { position: relative; background: transparent; color: transparent; caret-color: var(--tartan-ink); white-space: pre; }
+.tartan-combobox-input.has-marks::placeholder { color: var(--tartan-muted); }
+.tartan-mark--key { color: var(--tartan-accent); }
+.tartan-mark--value { color: var(--tartan-ink); background: var(--tartan-accent-soft); border-radius: 2px; }
+.tartan-mark--op { color: var(--tartan-muted); }
+.tartan-mark--text { color: var(--tartan-ink); }
+.tartan-mark--error { color: var(--tartan-danger); text-decoration: underline wavy var(--tartan-danger); text-underline-offset: .2em; }
 .tartan-combobox-option { padding: var(--tartan-space-1) var(--tartan-space-2); border-radius: var(--tartan-radius); cursor: pointer; }
 .tartan-combobox-option:hover, .tartan-combobox-option.is-active { background: var(--tartan-accent-soft); }
 .tartan-shell { min-height: 100vh; background: var(--tartan-paper); color: var(--tartan-ink); }

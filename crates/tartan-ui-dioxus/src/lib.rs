@@ -768,10 +768,147 @@ fn FacetCategoryFields(
     }
 }
 
+/// What a keydown does in [`QueryCombobox`]; decided by [`key_action`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyAction {
+    /// Accept the suggestion at this flat index.
+    Pick(usize),
+    Submit,
+    /// Enter while the caller reports blocking errors: do not submit.
+    Blocked,
+    /// Move the highlight (arrows wrap).
+    Move(Option<usize>),
+    Close,
+    PassThrough,
+}
+
+/// The highlighted row: the explicit one, else row 0 when `autoselect` and the
+/// list is showing rows.
+fn effective_active(
+    active: Option<usize>,
+    expanded: bool,
+    count: usize,
+    autoselect: bool,
+) -> Option<usize> {
+    active
+        .or((autoselect && expanded && count > 0).then_some(0))
+        .filter(|index| expanded && *index < count)
+}
+
+fn key_action(
+    key: &str,
+    active: Option<usize>,
+    expanded: bool,
+    count: usize,
+    autoselect: bool,
+    blocking: bool,
+) -> KeyAction {
+    let active = effective_active(active, expanded, count, autoselect);
+    match key {
+        "ArrowDown" if count > 0 => {
+            KeyAction::Move(Some(active.map_or(0, |index| (index + 1) % count)))
+        }
+        "ArrowUp" if count > 0 => KeyAction::Move(Some(
+            active.map_or(count - 1, |index| (index + count - 1) % count),
+        )),
+        "Enter" => match active {
+            Some(index) => KeyAction::Pick(index),
+            None if blocking => KeyAction::Blocked,
+            None => KeyAction::Submit,
+        },
+        "Tab" if expanded && count > 0 => KeyAction::Pick(active.unwrap_or(0)),
+        "Escape" => KeyAction::Close,
+        _ => KeyAction::PassThrough,
+    }
+}
+
+/// UTF-16 code-unit index (`selectionStart`) to a byte offset into `value`,
+/// clamped to the end. An index inside a surrogate pair rounds up.
+fn utf16_to_byte(value: &str, utf16: usize) -> usize {
+    let mut units = 0;
+    for (byte, ch) in value.char_indices() {
+        if units >= utf16 {
+            return byte;
+        }
+        units += ch.len_utf16();
+    }
+    value.len()
+}
+
+/// Byte offset into `value` to a UTF-16 index (`setSelectionRange`). An offset
+/// inside a character rounds up past it.
+fn byte_to_utf16(value: &str, byte: usize) -> usize {
+    value
+        .char_indices()
+        .take_while(|(index, _)| *index < byte)
+        .map(|(_, ch)| ch.len_utf16())
+        .sum()
+}
+
+/// Split `value` into `(text, kind)` runs for the highlight mirror. Marks that
+/// are empty, out of range, off a char boundary or overlap an earlier mark are
+/// ignored; gaps come back with no kind.
+fn mark_segments<'a>(
+    value: &'a str,
+    marks: &'a [(usize, usize, String)],
+) -> Vec<(&'a str, Option<&'a str>)> {
+    let mut sorted: Vec<_> = marks.iter().collect();
+    sorted.sort_by_key(|mark| (mark.0, mark.1));
+    let mut out = Vec::new();
+    let mut at = 0;
+    for (start, end, kind) in sorted {
+        let valid = at <= *start
+            && start < end
+            && *end <= value.len()
+            && value.is_char_boundary(*start)
+            && value.is_char_boundary(*end);
+        if !valid {
+            continue;
+        }
+        if at < *start {
+            out.push((&value[at..*start], None));
+        }
+        out.push((&value[*start..*end], Some(kind.as_str())));
+        at = *end;
+    }
+    if at < value.len() {
+        out.push((&value[at..], None));
+    }
+    out
+}
+
+/// Caret byte offset of the input `id`. Falls back to the end of `value` when
+/// the document cannot evaluate script (SSR, native) or the element is gone.
+async fn read_caret(id: &str, value: &str) -> usize {
+    let js = format!(
+        "var e=document.getElementById({id:?});return e&&e.selectionStart!=null?e.selectionStart:-1;"
+    );
+    match document::eval(&js).join::<i64>().await {
+        Ok(utf16) if utf16 >= 0 => utf16_to_byte(value, utf16 as usize),
+        _ => value.len(),
+    }
+}
+
+/// Optionally move the caret of input `id` (UTF-16 index), then copy its
+/// horizontal scroll to the highlight mirror.
+fn sync_input(id: &str, caret_utf16: Option<usize>) {
+    let select = caret_utf16.map_or(String::new(), |at| {
+        format!("i.setSelectionRange({at},{at});")
+    });
+    document::eval(&format!(
+        "var i=document.getElementById({id:?});if(i){{{select}var m=document.getElementById({id:?}+'-mirror');if(m)m.scrollLeft=i.scrollLeft;}}"
+    ));
+}
+
 /// Generic ARIA combobox for query text. The caller owns the value, the
 /// suggestions, validation and any fetching or debouncing; this component
-/// only handles open state, the highlighted row and keyboard interaction.
-/// Enter picks the highlighted suggestion, otherwise submits the value.
+/// handles open state, the highlighted row, keyboard interaction, caret
+/// reporting and the optional highlight mirror.
+///
+/// Errors never hide the list: they render under the field as a status hint,
+/// and become an alert when Enter is pressed while `blocking`. Enter picks the
+/// highlighted row (row 0 under `autoselect`), otherwise submits; Tab accepts
+/// the highlighted row (or row 0) while rows are showing.
 #[component]
 pub fn QueryCombobox(
     id: String,
@@ -781,110 +918,218 @@ pub fn QueryCombobox(
     #[props(default)] hint: Option<String>,
     suggestions: Vec<Suggestion>,
     #[props(default)] errors: Vec<String>,
-    on_input: EventHandler<String>,
+    /// Errors forbid submitting: Enter does not call `on_submit`.
+    #[props(default)]
+    blocking: bool,
+    /// Enter completes row 0 while the list shows rows and nothing is
+    /// highlighted (the token under the caret is a `key:prefix`).
+    #[props(default)]
+    autoselect: bool,
+    /// `(byte range, kind)` runs painted behind a transparent-text input.
+    #[props(default)]
+    marks: Vec<(usize, usize, String)>,
+    /// Byte offset to place the caret at whenever this value changes.
+    #[props(default)]
+    caret: Option<usize>,
+    #[props(default)] footer: Option<Element>,
+    /// New value and the caret as a byte offset into it.
+    on_input: EventHandler<(String, usize)>,
+    /// Caret moved by click, ArrowLeft/Right, Home or End (byte offset).
+    #[props(default)]
+    on_caret: Option<EventHandler<usize>>,
     on_pick: EventHandler<Suggestion>,
     on_submit: EventHandler<String>,
     #[props(default)] on_focus: Option<EventHandler<()>>,
 ) -> Element {
     let mut open = use_signal(|| false);
-    // `None` until typing or arrow keys: focusing the box and pressing Enter
-    // submits instead of picking the first suggestion.
+    // `None` until arrow keys: typing or focusing and pressing Enter submits
+    // instead of picking a suggestion (unless `autoselect`).
     let mut active = use_signal(|| None::<usize>);
+    // Set by a blocked Enter so screen readers announce the errors.
+    let mut alerting = use_signal(|| false);
     let count = suggestions.len();
     let has_errors = !errors.is_empty();
-    let expanded = open() && !has_errors && count > 0;
-    let active_index = active().filter(|index| expanded && *index < count);
+    let expanded = open() && count > 0;
+    let active_index = effective_active(active(), expanded, count, autoselect);
     let keydown_suggestions = suggestions.clone();
     let keydown_value = value.clone();
+    let caret_value = value.clone();
+    let click_value = value.clone();
+    let input_id = id.clone();
+    let keyup_id = id.clone();
+    let click_id = id.clone();
+    let scroll_id = id.clone();
+    let effect_id = id.clone();
+    let has_marks = !marks.is_empty();
+    // `Cell` so the effect only moves the caret when `caret` itself changed,
+    // not on every keystroke while the caller still holds the old offset.
+    let applied_caret = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(None::<usize>)));
+    use_effect(use_reactive!(|caret, value, has_marks| {
+        let moved = applied_caret.replace(caret) != caret;
+        let target = caret
+            .filter(|_| moved)
+            .map(|byte| byte_to_utf16(&value, byte));
+        if target.is_some() || has_marks {
+            sync_input(&effect_id, target);
+        }
+    }));
+    // A heading precedes the first row of each consecutive run of one group.
+    let mut previous: Option<String> = None;
+    let rows: Vec<(Option<String>, usize, Suggestion)> = suggestions
+        .into_iter()
+        .enumerate()
+        .map(|(index, suggestion)| {
+            let heading = if suggestion.group != previous {
+                suggestion.group.clone()
+            } else {
+                None
+            };
+            previous = suggestion.group.clone();
+            (heading, index, suggestion)
+        })
+        .collect();
     rsx! {
         div { class: "tartan-combobox",
             label { class: "tartan-field__label", r#for: "{id}", "{label}" }
-            input {
-                id: "{id}",
-                class: "tartan-combobox-input",
-                r#type: "text",
-                enterkeyhint: "search",
-                placeholder: "{placeholder}",
-                value: "{value}",
-                autocomplete: "off",
-                spellcheck: "false",
-                role: "combobox",
-                aria_expanded: expanded.to_string(),
-                aria_controls: "{id}-listbox",
-                aria_autocomplete: "list",
-                aria_activedescendant: active_index.map(|index| format!("{id}-option-{index}")),
-                aria_invalid: has_errors.to_string(),
-                oninput: move |event| {
-                    active.set(Some(0));
-                    open.set(true);
-                    on_input.call(event.value());
-                },
-                onfocus: move |_| {
-                    active.set(None);
-                    open.set(true);
-                    if let Some(on_focus) = on_focus {
-                        on_focus.call(());
-                    }
-                },
-                // Reopen after Escape without leaving the focused box.
-                onclick: move |_| open.set(true),
-                onblur: move |_| open.set(false),
-                onkeydown: move |event| {
-                    let key = event.key().to_string();
-                    if key == "ArrowDown" && count > 0 {
-                        event.prevent_default();
-                        active.set(Some(active().map_or(0, |index| (index + 1) % count)));
-                        open.set(true);
-                    } else if key == "ArrowUp" && count > 0 {
-                        event.prevent_default();
-                        active.set(Some(active().map_or(count - 1, |index| (index + count - 1) % count)));
-                        open.set(true);
-                    } else if key == "Enter" {
-                        event.prevent_default();
-                        match active().filter(|_| open() && count > 0) {
-                            Some(index) => on_pick.call(keydown_suggestions[index % count].clone()),
-                            None => on_submit.call(keydown_value.clone()),
+            div { class: "tartan-combobox-field",
+                if has_marks {
+                    div { id: "{id}-mirror", class: "tartan-combobox-mirror", aria_hidden: "true",
+                        for (index, (text, kind)) in mark_segments(&value, &marks).into_iter().enumerate() {
+                            if let Some(kind) = kind {
+                                span { key: "{index}", class: "tartan-mark tartan-mark--{kind}", "{text}" }
+                            } else {
+                                span { key: "{index}", "{text}" }
+                            }
                         }
-                    } else if key == "Escape" {
-                        open.set(false);
                     }
-                },
+                }
+                input {
+                    id: "{id}",
+                    class: if has_marks { "tartan-combobox-input has-marks" } else { "tartan-combobox-input" },
+                    r#type: "text",
+                    enterkeyhint: "search",
+                    placeholder: "{placeholder}",
+                    value: "{value}",
+                    autocomplete: "off",
+                    spellcheck: "false",
+                    role: "combobox",
+                    aria_expanded: expanded.to_string(),
+                    aria_controls: "{id}-listbox",
+                    aria_autocomplete: "list",
+                    aria_activedescendant: active_index.map(|index| format!("{id}-option-{index}")),
+                    aria_invalid: has_errors.to_string(),
+                    oninput: move |event| {
+                        active.set(None);
+                        alerting.set(false);
+                        open.set(true);
+                        let value = event.value();
+                        let id = input_id.clone();
+                        spawn(async move {
+                            let caret = read_caret(&id, &value).await;
+                            on_input.call((value, caret));
+                            sync_input(&id, None);
+                        });
+                    },
+                    onfocus: move |_| {
+                        active.set(None);
+                        open.set(true);
+                        if let Some(on_focus) = on_focus {
+                            on_focus.call(());
+                        }
+                    },
+                    // Reopen after Escape without leaving the focused box.
+                    onclick: move |_| {
+                        open.set(true);
+                        if let Some(on_caret) = on_caret {
+                            let (id, value) = (click_id.clone(), click_value.clone());
+                            spawn(async move { on_caret.call(read_caret(&id, &value).await) });
+                        }
+                    },
+                    onscroll: move |_| sync_input(&scroll_id, None),
+                    onblur: move |_| open.set(false),
+                    onkeyup: move |event| {
+                        let key = event.key().to_string();
+                        if let Some(on_caret) = on_caret
+                            && matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End")
+                        {
+                            let (id, value) = (keyup_id.clone(), caret_value.clone());
+                            spawn(async move { on_caret.call(read_caret(&id, &value).await) });
+                        }
+                    },
+                    onkeydown: move |event| {
+                        let key = event.key().to_string();
+                        match key_action(&key, active(), expanded, count, autoselect, blocking && has_errors) {
+                            KeyAction::Move(next) => {
+                                event.prevent_default();
+                                active.set(next);
+                                open.set(true);
+                            }
+                            KeyAction::Pick(index) => {
+                                event.prevent_default();
+                                on_pick.call(keydown_suggestions[index].clone());
+                            }
+                            KeyAction::Submit => {
+                                event.prevent_default();
+                                on_submit.call(keydown_value.clone());
+                            }
+                            KeyAction::Blocked => {
+                                event.prevent_default();
+                                alerting.set(true);
+                            }
+                            KeyAction::Close => open.set(false),
+                            KeyAction::PassThrough => {}
+                        }
+                    },
+                }
             }
             if let Some(hint) = hint { p { class: "tartan-field__hint", "{hint}" } }
             if has_errors {
-                div { class: "tartan-combobox-errors", role: "alert",
+                div {
+                    class: "tartan-combobox-errors",
+                    role: if alerting() { "alert" } else { "status" },
                     for error in errors {
                         p { key: "{error}", "{error}" }
                     }
                 }
             }
             if count > 0 {
-                ul {
-                    id: "{id}-listbox",
-                    class: "tartan-combobox-list",
-                    role: "listbox",
-                    aria_label: "{label} suggestions",
+                // mousedown keeps focus in the input, so blur cannot close the
+                // popup before a pick or a footer click lands.
+                div {
+                    class: "tartan-combobox-popup",
                     hidden: !expanded,
-                    for (index, suggestion) in suggestions.into_iter().enumerate() {
-                        li {
-                            key: "{index}:{suggestion.label}",
-                            id: "{id}-option-{index}",
-                            role: "option",
-                            aria_selected: (Some(index) == active_index).to_string(),
-                            class: if Some(index) == active_index { "tartan-combobox-option is-active" } else { "tartan-combobox-option" },
-                            // mousedown keeps focus in the input, so blur cannot
-                            // close the list before the pick lands.
-                            onmousedown: {
-                                let suggestion = suggestion.clone();
-                                move |event| {
-                                    event.prevent_default();
-                                    open.set(false);
-                                    on_pick.call(suggestion.clone());
-                                }
-                            },
-                            strong { "{suggestion.label}" }
-                            if let Some(detail) = &suggestion.detail { span { class: "tartan-muted", " {detail}" } }
+                    onmousedown: move |event| event.prevent_default(),
+                    ul {
+                        id: "{id}-listbox",
+                        class: "tartan-combobox-list",
+                        role: "listbox",
+                        aria_label: "{label} suggestions",
+                        for (heading, index, suggestion) in rows {
+                            Fragment { key: "{index}:{suggestion.label}",
+                            if let Some(group) = heading {
+                                li { role: "presentation", class: "tartan-combobox-group", "{group}" }
+                            }
+                            li {
+                                id: "{id}-option-{index}",
+                                role: "option",
+                                aria_selected: (Some(index) == active_index).to_string(),
+                                class: if Some(index) == active_index { "tartan-combobox-option is-active" } else { "tartan-combobox-option" },
+                                onmousedown: {
+                                    let suggestion = suggestion.clone();
+                                    move |event| {
+                                        event.prevent_default();
+                                        open.set(false);
+                                        on_pick.call(suggestion.clone());
+                                    }
+                                },
+                                strong { "{suggestion.label}" }
+                                if let Some(detail) = &suggestion.detail { span { class: "tartan-muted", " {detail}" } }
+                            }
+                            }
                         }
+                    }
+                    if expanded && let Some(footer) = footer {
+                        div { class: "tartan-combobox-footer", {footer} }
                     }
                 }
             }
@@ -895,6 +1140,156 @@ pub fn QueryCombobox(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_action_enter_submits_unless_autoselect_or_highlighted() {
+        use KeyAction::*;
+        assert_eq!(key_action("Enter", None, true, 3, false, false), Submit);
+        assert_eq!(key_action("Enter", None, true, 3, true, false), Pick(0));
+        assert_eq!(key_action("Enter", Some(2), true, 3, false, false), Pick(2));
+        // Autoselect does nothing without rows or while collapsed.
+        assert_eq!(key_action("Enter", None, true, 0, true, false), Submit);
+        assert_eq!(key_action("Enter", None, false, 3, true, false), Submit);
+        // A stale highlight past the end of a shrunken list is ignored.
+        assert_eq!(key_action("Enter", Some(5), true, 3, false, false), Submit);
+    }
+
+    #[test]
+    fn key_action_enter_while_blocking_never_submits() {
+        use KeyAction::*;
+        assert_eq!(key_action("Enter", None, true, 3, false, true), Blocked);
+        assert_eq!(key_action("Enter", None, false, 0, false, true), Blocked);
+        // Completing a value is still allowed.
+        assert_eq!(key_action("Enter", None, true, 3, true, true), Pick(0));
+    }
+
+    #[test]
+    fn key_action_tab_accepts_only_when_rows_show() {
+        use KeyAction::*;
+        assert_eq!(key_action("Tab", None, true, 3, false, false), Pick(0));
+        assert_eq!(key_action("Tab", Some(1), true, 3, false, false), Pick(1));
+        assert_eq!(key_action("Tab", None, true, 0, false, false), PassThrough);
+        assert_eq!(key_action("Tab", None, false, 3, false, false), PassThrough);
+    }
+
+    #[test]
+    fn key_action_arrows_wrap_and_escape_closes() {
+        use KeyAction::*;
+        assert_eq!(
+            key_action("ArrowDown", None, true, 3, false, false),
+            Move(Some(0))
+        );
+        assert_eq!(
+            key_action("ArrowDown", Some(2), true, 3, false, false),
+            Move(Some(0))
+        );
+        assert_eq!(
+            key_action("ArrowUp", None, true, 3, false, false),
+            Move(Some(2))
+        );
+        assert_eq!(
+            key_action("ArrowUp", Some(0), true, 3, false, false),
+            Move(Some(2))
+        );
+        // Autoselect's implicit row 0 is the starting point.
+        assert_eq!(
+            key_action("ArrowDown", None, true, 3, true, false),
+            Move(Some(1))
+        );
+        assert_eq!(
+            key_action("ArrowDown", None, true, 0, false, false),
+            PassThrough
+        );
+        assert_eq!(key_action("Escape", None, true, 3, false, false), Close);
+        assert_eq!(key_action("a", None, true, 3, false, false), PassThrough);
+    }
+
+    #[test]
+    fn caret_offsets_convert_between_utf16_and_bytes() {
+        // 'é' is 2 bytes / 1 unit; '😀' is 4 bytes / 2 units.
+        let value = "aé😀b";
+        assert_eq!(utf16_to_byte(value, 0), 0);
+        assert_eq!(utf16_to_byte(value, 2), 3);
+        assert_eq!(utf16_to_byte(value, 4), 7);
+        assert_eq!(utf16_to_byte(value, 5), 8);
+        assert_eq!(utf16_to_byte(value, 99), value.len());
+        assert_eq!(byte_to_utf16(value, 3), 2);
+        assert_eq!(byte_to_utf16(value, 7), 4);
+        assert_eq!(byte_to_utf16(value, 99), 5);
+        for byte in value.char_indices().map(|(i, _)| i).chain([value.len()]) {
+            assert_eq!(utf16_to_byte(value, byte_to_utf16(value, byte)), byte);
+        }
+    }
+
+    #[test]
+    fn mark_segments_cover_value_and_skip_invalid_marks() {
+        let marks = |list: &[(usize, usize, &str)]| -> Vec<(usize, usize, String)> {
+            list.iter()
+                .map(|(a, b, k)| (*a, *b, k.to_string()))
+                .collect()
+        };
+        let value = "type:é x";
+        assert_eq!(
+            mark_segments(value, &marks(&[(5, 7, "value"), (0, 4, "key")])),
+            vec![
+                ("type", Some("key")),
+                (":", None),
+                ("é", Some("value")),
+                (" x", None)
+            ]
+        );
+        // Out of range, inside 'é', empty, reversed and overlapping marks vanish.
+        let bad = marks(&[
+            (0, 99, "key"),
+            (6, 7, "value"),
+            (2, 2, "op"),
+            (3, 1, "op"),
+            (0, 4, "key"),
+            (2, 4, "error"),
+        ]);
+        assert_eq!(
+            mark_segments(value, &bad),
+            vec![("type", Some("key")), (":é x", None)]
+        );
+        assert_eq!(mark_segments("", &[]), vec![]);
+    }
+
+    #[test]
+    fn query_combobox_renders_groups_marks_footer_and_status_errors() {
+        #[component]
+        fn Fixture() -> Element {
+            let row = |label: &str, group: Option<&str>| Suggestion {
+                insert: label.to_string(),
+                label: label.to_string(),
+                group: group.map(str::to_string),
+                ..Default::default()
+            };
+            rsx! {
+                QueryCombobox {
+                    id: "q".to_string(), label: "Search".to_string(), value: "type:".to_string(),
+                    suggestions: vec![row("a", Some("G1")), row("b", Some("G1")), row("c", Some("G2")), row("d", None)],
+                    errors: vec!["needs a value".to_string()],
+                    marks: vec![(0, 4, "key".to_string()), (4, 5, "op".to_string())],
+                    footer: rsx! { span { "Enter to search" } },
+                    on_input: |_| {}, on_pick: |_| {}, on_submit: |_| {},
+                }
+            }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture {} });
+        assert_eq!(html.matches("tartan-combobox-group").count(), 2, "{html}");
+        assert_eq!(html.matches("role=\"presentation\"").count(), 2);
+        assert_eq!(html.matches("role=\"option\"").count(), 4);
+        assert!(html.contains("id=\"q-option-3\""));
+        assert!(
+            html.contains("tartan-mark tartan-mark--key") && html.contains("tartan-mark--op"),
+            "{html}"
+        );
+        assert!(html.contains("id=\"q-mirror\"") && html.contains("aria-hidden=\"true\""));
+        // Errors no longer hide or alert by themselves.
+        assert!(html.contains("role=\"status\"") && !html.contains("role=\"alert\""));
+        // Collapsed until opened, so the footer is not rendered yet.
+        assert!(!html.contains("Enter to search"));
+    }
 
     #[test]
     fn shared_progress_model_is_renderable() {
@@ -1132,8 +1527,8 @@ mod tests {
                             id: "q".to_string(), label: "Search".to_string(), value: "per".to_string(),
                             hint: "Try period:1900".to_string(),
                             suggestions: vec![
-                                Suggestion { insert: "period:".to_string(), label: "period:".to_string(), detail: Some("Period".to_string()) },
-                                Suggestion { insert: "plan".to_string(), label: "plan".to_string(), detail: None },
+                                Suggestion { insert: "period:".to_string(), label: "period:".to_string(), detail: Some("Period".to_string()), group: None },
+                                Suggestion { insert: "plan".to_string(), label: "plan".to_string(), detail: None, group: None },
                             ],
                             errors: vec!["Unclosed quote".to_string()],
                             on_input: |_| {}, on_pick: |_| {}, on_submit: |_| {},
@@ -1149,7 +1544,7 @@ mod tests {
         assert!(html.contains("role=\"listbox\""));
         assert!(html.contains("id=\"q-option-0\"") && html.contains("id=\"q-option-1\""));
         assert_eq!(html.matches("role=\"option\"").count(), 2);
-        assert!(html.contains("role=\"alert\""));
+        assert!(html.contains("role=\"status\""));
         assert!(html.contains("Unclosed quote"));
         assert!(html.contains("Try period:1900"));
     }

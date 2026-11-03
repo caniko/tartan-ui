@@ -23,9 +23,12 @@ pub struct FacetGroup {
 }
 
 /// A completion offered by a query box. `insert` replaces the current token.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Suggestion {
     pub insert: String,
     pub label: String,
     pub detail: Option<String>,
+    /// Heading shared by a consecutive run of rows; `None` renders no heading.
+    #[serde(default)]
+    pub group: Option<String>,
 }
