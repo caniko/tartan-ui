@@ -835,6 +835,25 @@ fn utf16_to_byte(value: &str, utf16: usize) -> usize {
     value.len()
 }
 
+/// Caret (byte offset into `new`) after one contiguous edit of `old`: the end
+/// of the changed region. Typing, deleting and pasting are single edits.
+fn caret_after_edit(old: &str, new: &str) -> usize {
+    let prefix: usize = old
+        .chars()
+        .zip(new.chars())
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len_utf8())
+        .sum();
+    let suffix: usize = old[prefix..]
+        .chars()
+        .rev()
+        .zip(new[prefix..].chars().rev())
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len_utf8())
+        .sum();
+    new.len() - suffix
+}
+
 /// Byte offset into `value` to a UTF-16 index (`setSelectionRange`). An offset
 /// inside a character rounds up past it.
 fn byte_to_utf16(value: &str, byte: usize) -> usize {
@@ -959,6 +978,7 @@ pub fn QueryCombobox(
     let caret_value = value.clone();
     let click_value = value.clone();
     let input_id = id.clone();
+    let input_value = value.clone();
     let keyup_id = id.clone();
     let click_id = id.clone();
     let scroll_id = id.clone();
@@ -1025,13 +1045,12 @@ pub fn QueryCombobox(
                         active.set(None);
                         alerting.set(false);
                         open.set(true);
+                        // Synchronous: an async report would let a re-render write
+                        // the stale value back, which moves the caret to the end.
                         let value = event.value();
-                        let id = input_id.clone();
-                        spawn(async move {
-                            let caret = read_caret(&id, &value).await;
-                            on_input.call((value, caret));
-                            sync_input(&id, None);
-                        });
+                        let caret = caret_after_edit(&input_value, &value);
+                        on_input.call((value, caret));
+                        sync_input(&input_id, None);
                     },
                     onfocus: move |_| {
                         active.set(None);
@@ -1144,6 +1163,17 @@ pub fn QueryCombobox(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn caret_after_edit_lands_after_the_change() {
+        // Typing in the middle, at the end, deleting, pasting, multibyte.
+        assert_eq!(caret_after_edit("type: area", "type:u area"), 6);
+        assert_eq!(caret_after_edit("type:", "type:p"), 6);
+        assert_eq!(caret_after_edit("aXa", "aa"), 1);
+        assert_eq!(caret_after_edit("a b", "a req: b"), 7);
+        assert_eq!(caret_after_edit("m²", "m²x"), "m²x".len());
+        assert_eq!(caret_after_edit("", ""), 0);
+    }
 
     #[test]
     fn key_action_enter_submits_unless_autoselect_or_highlighted() {
