@@ -1639,4 +1639,113 @@ mod tests {
         assert!(dark.contains("setItem('tartan-theme','dark')"));
         assert!(THEME_INIT_SCRIPT.contains("tartan-theme"));
     }
+
+    const STYLESHEET: &str = include_str!("../assets/tartan-ui.css");
+
+    fn declaration(name: &str) -> &'static str {
+        STYLESHEET
+            .lines()
+            .find(|line| line.trim_start().starts_with(name))
+            .unwrap_or_else(|| panic!("missing declaration {name}"))
+    }
+
+    fn rule(selector: &str) -> &'static str {
+        let start = STYLESHEET
+            .find(selector)
+            .unwrap_or_else(|| panic!("missing rule {selector}"));
+        let rule = &STYLESHEET[start..];
+        &rule[..rule.find('}').unwrap_or(rule.len())]
+    }
+
+    #[test]
+    fn stylesheet_aliases_consume_semantic_theme_roles() {
+        for (alias, role) in [
+            ("--tartan-accent:", "--tb-ui-accent"),
+            ("--tartan-accent-hover:", "--tb-ui-accent-hover"),
+            ("--tartan-accent-active:", "--tb-ui-accent-active"),
+            ("--tartan-on-accent:", "--tb-ui-on-accent"),
+            ("--tartan-focus:", "--tb-ui-focus"),
+            (
+                "--tartan-selection-background:",
+                "--tb-ui-selection-background",
+            ),
+            (
+                "--tartan-selection-foreground:",
+                "--tb-ui-selection-foreground",
+            ),
+            ("--tartan-surface:", "--tb-ui-surface"),
+        ] {
+            let line = declaration(alias);
+            assert!(line.contains(role), "{alias} must consume {role}: {line}");
+        }
+        assert!(!STYLESHEET.to_ascii_lowercase().contains("honey"));
+    }
+
+    #[test]
+    fn on_accent_prefers_the_explicit_role_and_keeps_the_old_background_fallback() {
+        let line = declaration("--tartan-on-accent:");
+        assert!(
+            line.trim_start()
+                .starts_with("--tartan-on-accent: var(--tb-ui-on-accent,"),
+            "{line}"
+        );
+        assert!(line.contains("var(--tb-ui-background, #ffffff)"), "{line}");
+    }
+
+    #[test]
+    fn button_hover_and_active_use_accent_state_roles_without_affecting_disabled() {
+        let hover = rule(".tartan-button:not(:disabled):not([aria-disabled=\"true\"]):hover");
+        assert!(hover.contains("background: var(--tartan-accent-hover)"));
+        let active = rule(".tartan-button:not(:disabled):not([aria-disabled=\"true\"]):active");
+        assert!(active.contains("background: var(--tartan-accent-active)"));
+        assert!(!STYLESHEET.contains(".tartan-button:hover"));
+        assert!(!STYLESHEET.contains("opacity: .88"));
+    }
+
+    #[test]
+    fn selection_colors_are_scoped_to_the_opt_in_shell() {
+        let selection = rule(".tartan-shell::selection, .tartan-shell ::selection");
+        assert!(selection.contains("background: var(--tartan-selection-background)"));
+        assert!(selection.contains("color: var(--tartan-selection-foreground)"));
+        assert!(!STYLESHEET.contains("\n::selection"));
+    }
+
+    #[test]
+    fn selected_navigation_is_neutral_with_an_accent_indicator() {
+        let current = rule(".tartan-nav__link--current");
+        assert!(current.contains("background: var(--tartan-surface)"));
+        assert!(current.contains("border-bottom: 2px solid var(--tartan-accent)"));
+        assert!(!current.contains("--tartan-accent-soft"));
+    }
+
+    #[test]
+    fn progress_and_loading_use_the_primary_accent_role() {
+        assert!(rule(".tartan-progress__value").contains("background: var(--tartan-accent)"));
+        assert!(
+            rule(".tartan-loading__spinner").contains("border-top-color: var(--tartan-accent)")
+        );
+    }
+
+    #[test]
+    fn focus_ring_uses_the_focus_role_not_the_accent_role() {
+        let focus = rule(":focus-visible");
+        assert!(focus.contains("outline: 2px solid var(--tartan-focus)"));
+        assert!(!focus.contains("var(--tartan-accent"));
+    }
+
+    #[test]
+    fn feedback_modifiers_keep_their_status_roles() {
+        for (modifier, role) in [
+            ("error", "--tartan-danger"),
+            ("warning", "--tartan-warning"),
+            ("success", "--tartan-success"),
+            ("info", "--tartan-info"),
+        ] {
+            let selector = format!(".tartan-feedback--{modifier}");
+            assert!(
+                rule(&selector).contains(&format!("border-color: var({role})")),
+                "{selector} must keep {role}"
+            );
+        }
+    }
 }
