@@ -9,7 +9,7 @@
     --tartan-line: var(--tb-ui-border, #d9d9d6);
     --tartan-accent: var(--tb-ui-accent, #076678);
     --tartan-accent-hover: var(--tb-ui-accent-hover);
-    --tartan-accent-active: var(--tb-ui-accent-active, var(--tartan-accent-hover));
+    --tartan-accent-active: var(--tb-ui-accent-active);
     --tartan-accent-soft: var(--tb-ui-selection-background, #f2f2f0);
     --tartan-on-accent: var(--tb-ui-on-accent, var(--tb-ui-background, #ffffff));
     --tartan-selection-background: var(--tb-ui-selection-background, Highlight);

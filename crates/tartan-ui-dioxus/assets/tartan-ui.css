@@ -5,7 +5,7 @@
   --tartan-line: var(--tb-ui-border, #d9d9d6);
   --tartan-accent: var(--tb-ui-accent, #076678);
   --tartan-accent-hover: var(--tb-ui-accent-hover);
-  --tartan-accent-active: var(--tb-ui-accent-active, var(--tartan-accent-hover));
+  --tartan-accent-active: var(--tb-ui-accent-active);
   --tartan-accent-soft: var(--tb-ui-selection-background, #f2f2f0);
   --tartan-on-accent: var(--tb-ui-on-accent, var(--tb-ui-background, #ffffff));
   --tartan-selection-background: var(--tb-ui-selection-background, Highlight);
@@ -91,7 +91,7 @@
 .tartan-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tartan-space-1); }
 .tartan-nav__link { color: var(--tartan-muted); border-radius: var(--tartan-radius); padding: var(--tartan-space-2) var(--tartan-space-3); text-decoration: none; }
 .tartan-nav__link:hover { color: var(--tartan-ink); background: var(--tartan-accent-soft); }
-.tartan-nav__link--current { color: var(--tartan-ink); background: var(--tartan-surface); border-bottom: 2px solid var(--tartan-accent); padding-bottom: calc(var(--tartan-space-2) - 2px); }
+.tartan-nav__link--current { color: var(--tartan-ink); background: var(--tartan-surface); box-shadow: inset 0 -2px 0 var(--tartan-accent); }
 .tartan-page-layout { display: grid; gap: var(--tartan-space-6); }
 .tartan-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--tartan-space-4); }
 .tartan-tag-list { display: flex; flex-wrap: wrap; gap: var(--tartan-space-2); margin: 0; padding: 0; list-style: none; }
@@ -114,9 +114,10 @@
 .tartan-resource-card__body > .tartan-progress,
 .tartan-resource-card__body > .tartan-metrics { margin-top: var(--tartan-space-4); }
 .tartan-resource-card h2 { margin: 0; font-size: 1.25rem; }
-.tartan-button { display: inline-flex; width: fit-content; border: 1px solid var(--tartan-accent); border-radius: var(--tartan-radius); background: var(--tartan-accent); color: var(--tartan-on-accent); padding: var(--tartan-space-2) var(--tartan-space-3); text-decoration: none; }
-.tartan-button:where(:not(:disabled):not([aria-disabled="true"])):hover { --tartan-button-hover: var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper))); border-color: var(--tartan-button-hover); background: var(--tartan-button-hover); }
-.tartan-button:where(:not(:disabled):not([aria-disabled="true"])):active { --tartan-button-active: var(--tartan-accent-active, var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper)))); border-color: var(--tartan-button-active); background: var(--tartan-button-active); }
+.tartan-button { display: inline-flex; width: fit-content; border: 1px solid var(--tartan-button-bg, var(--tartan-accent)); border-radius: var(--tartan-radius); background: var(--tartan-button-bg, var(--tartan-accent)); color: var(--tartan-on-accent); padding: var(--tartan-space-2) var(--tartan-space-3); text-decoration: none; }
+/* States only swap the colour variable, so a host's own button background wins in every state. */
+.tartan-button:where(:not(:disabled):not([aria-disabled="true"])):hover { --tartan-button-bg: var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper))); }
+.tartan-button:where(:not(:disabled):not([aria-disabled="true"])):active { --tartan-button-bg: var(--tartan-accent-active, var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper)))); }
 .tartan-theme-toggle { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: transparent; color: inherit; padding: var(--tartan-space-2); cursor: pointer; }
 .tartan-theme-toggle:hover { background: var(--tartan-accent-soft); }
 .tartan-icon { flex: none; vertical-align: middle; }

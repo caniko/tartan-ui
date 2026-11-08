@@ -1703,6 +1703,15 @@ mod tests {
         let active =
             rule(".tartan-button:where(:not(:disabled):not([aria-disabled=\"true\"])):active");
         assert!(active.contains("var(--tartan-accent-active, var(--tartan-accent-hover,"));
+        // States only set the colour variable; a host's literal background wins.
+        for state in [hover, active] {
+            assert!(state.contains("--tartan-button-bg:"), "{state}");
+            assert!(!state.contains("background:"), "{state}");
+        }
+        assert!(
+            rule(".tartan-button {")
+                .contains("background: var(--tartan-button-bg, var(--tartan-accent))")
+        );
         assert_eq!(
             declaration("--tartan-accent-hover:").trim(),
             "--tartan-accent-hover: var(--tb-ui-accent-hover);"
@@ -1726,7 +1735,9 @@ mod tests {
     fn selected_navigation_is_neutral_with_an_accent_indicator() {
         let current = rule(".tartan-nav__link--current");
         assert!(current.contains("background: var(--tartan-surface)"));
-        assert!(current.contains("border-bottom: 2px solid var(--tartan-accent)"));
+        // Inset shadow, not a border, so host padding cannot change the height.
+        assert!(current.contains("box-shadow: inset 0 -2px 0 var(--tartan-accent)"));
+        assert!(!current.contains("border-bottom"));
         assert!(!current.contains("--tartan-accent-soft"));
     }
 
