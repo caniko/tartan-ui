@@ -984,6 +984,16 @@ pub fn QueryCombobox(
     let scroll_id = id.clone();
     let effect_id = id.clone();
     let has_marks = !marks.is_empty();
+    // The hint and current errors describe the input, so focusing it
+    // announces them, not only the live region when they change.
+    let described_by = [
+        hint.as_ref().map(|_| format!("{id}-hint")),
+        has_errors.then(|| format!("{id}-errors")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
     // `Cell` so the effect only moves the caret when `caret` itself changed,
     // not on every keystroke while the caller still holds the old offset.
     let applied_caret = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(None::<usize>)));
@@ -1041,6 +1051,8 @@ pub fn QueryCombobox(
                     aria_autocomplete: "list",
                     aria_activedescendant: active_index.map(|index| format!("{id}-option-{index}")),
                     aria_invalid: has_errors.to_string(),
+                    aria_describedby: (!described_by.is_empty()).then_some(described_by),
+                    aria_errormessage: has_errors.then(|| format!("{id}-errors")),
                     oninput: move |event| {
                         active.set(None);
                         alerting.set(false);
@@ -1105,9 +1117,10 @@ pub fn QueryCombobox(
                     },
                 }
             }
-            if let Some(hint) = hint { p { class: "tartan-field__hint", "{hint}" } }
+            if let Some(hint) = hint { p { id: "{id}-hint", class: "tartan-field__hint", "{hint}" } }
             if has_errors {
                 div {
+                    id: "{id}-errors",
                     class: "tartan-combobox-errors",
                     role: if alerting() { "alert" } else { "status" },
                     for error in errors {
@@ -1581,6 +1594,12 @@ mod tests {
         assert!(html.contains("role=\"status\""));
         assert!(html.contains("Unclosed quote"));
         assert!(html.contains("Try period:1900"));
+        assert!(
+            html.contains("aria-describedby=\"q-hint q-errors\""),
+            "{html}"
+        );
+        assert!(html.contains("aria-errormessage=\"q-errors\""));
+        assert!(html.contains("id=\"q-hint\"") && html.contains("id=\"q-errors\""));
     }
 
     #[test]
@@ -1599,6 +1618,7 @@ mod tests {
         assert!(html.contains("role=\"combobox\""));
         assert!(!html.contains("role=\"alert\""));
         assert!(!html.contains("role=\"listbox\""));
+        assert!(!html.contains("aria-describedby") && !html.contains("aria-errormessage"));
     }
 
     fn render_toggle(preference: Option<ThemePreference>) -> String {
