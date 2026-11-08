@@ -1694,10 +1694,19 @@ mod tests {
 
     #[test]
     fn button_hover_and_active_use_accent_state_roles_without_affecting_disabled() {
-        let hover = rule(".tartan-button:not(:disabled):not([aria-disabled=\"true\"]):hover");
-        assert!(hover.contains("background: var(--tartan-accent-hover)"));
-        let active = rule(".tartan-button:not(:disabled):not([aria-disabled=\"true\"]):active");
-        assert!(active.contains("background: var(--tartan-accent-active)"));
+        // `:where` keeps host overrides of `.tartan-button` in charge, and the
+        // derived fallback resolves at the button so scoped accents apply.
+        let mix = "color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper))";
+        let hover =
+            rule(".tartan-button:where(:not(:disabled):not([aria-disabled=\"true\"])):hover");
+        assert!(hover.contains(&format!("var(--tartan-accent-hover, {mix})")));
+        let active =
+            rule(".tartan-button:where(:not(:disabled):not([aria-disabled=\"true\"])):active");
+        assert!(active.contains("var(--tartan-accent-active, var(--tartan-accent-hover,"));
+        assert_eq!(
+            declaration("--tartan-accent-hover:").trim(),
+            "--tartan-accent-hover: var(--tb-ui-accent-hover);"
+        );
         assert!(!STYLESHEET.contains(".tartan-button:hover"));
         assert!(!STYLESHEET.contains("opacity: .88"));
     }
@@ -1708,6 +1717,9 @@ mod tests {
         assert!(selection.contains("background: var(--tartan-selection-background)"));
         assert!(selection.contains("color: var(--tartan-selection-foreground)"));
         assert!(!STYLESHEET.contains("\n::selection"));
+        // Without broker roles, selection must not match the card surface.
+        assert!(declaration("--tartan-selection-background:").contains("Highlight)"));
+        assert!(declaration("--tartan-selection-foreground:").contains("HighlightText)"));
     }
 
     #[test]

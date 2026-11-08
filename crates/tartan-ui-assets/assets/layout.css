@@ -8,12 +8,12 @@
     --tartan-muted: var(--tb-ui-foreground-muted, #5a5550);
     --tartan-line: var(--tb-ui-border, #d9d9d6);
     --tartan-accent: var(--tb-ui-accent, #076678);
-    --tartan-accent-hover: var(--tb-ui-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper)));
+    --tartan-accent-hover: var(--tb-ui-accent-hover);
     --tartan-accent-active: var(--tb-ui-accent-active, var(--tartan-accent-hover));
     --tartan-accent-soft: var(--tb-ui-selection-background, #f2f2f0);
     --tartan-on-accent: var(--tb-ui-on-accent, var(--tb-ui-background, #ffffff));
-    --tartan-selection-background: var(--tb-ui-selection-background, #f2f2f0);
-    --tartan-selection-foreground: var(--tb-ui-selection-foreground, var(--tartan-ink));
+    --tartan-selection-background: var(--tb-ui-selection-background, Highlight);
+    --tartan-selection-foreground: var(--tb-ui-selection-foreground, HighlightText);
     --tartan-surface: var(--tb-ui-surface, #f2f2f0);
     --tartan-danger: var(--tb-status-error, #9d0006);
     --tartan-warning: var(--tb-status-warning, #af3a03);
