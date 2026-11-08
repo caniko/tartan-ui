@@ -48,7 +48,10 @@ pub fn label_anchor(ring: &[[f64; 2]], precision: f64) -> Option<[f64; 2]> {
         best = middle;
     }
     while let Some(cell) = queue.pop() {
-        if cell.potential - best.distance.max(cell.distance) > precision {
+        // Keep refining until some interior point is known, whatever the
+        // precision, so a coarse precision cannot return a point outside.
+        let known = best.distance.max(cell.distance);
+        if cell.potential - known > precision || (known <= 0.0 && cell.potential > 0.0) {
             let half = cell.half / 2.0;
             for [dx, dy] in [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]] {
                 let center = [cell.center[0] + dx * half, cell.center[1] + dy * half];
@@ -82,8 +85,9 @@ pub struct LabelPlacement {
 
 /// Place label boxes inside `bounds` (`[min_x, min_y, max_x, max_y]`) so they
 /// do not overlap. Each label tries its anchor, then offsets in eight
-/// directions at growing distances; when none is free it takes the candidate
-/// with the least overlap. The result is in request order.
+/// directions at growing distances, then the nearest free spot on a
+/// half-label grid. Labels overlap only when that grid has no free spot, and
+/// then take the least-overlapping candidate. The result is in request order.
 // ponytail: greedy O(n² · candidates) scan, fine for the dozens of rooms on a
 // floorplan; switch to a spatial index if a host places thousands of labels.
 pub fn layout_labels(requests: &[LabelRequest], bounds: [f64; 4]) -> Vec<LabelPlacement> {
@@ -150,6 +154,25 @@ pub fn layout_labels(requests: &[LabelRequest], bounds: [f64; 4]) -> Vec<LabelPl
             }
             if cost == 0.0 {
                 break;
+            }
+        }
+        if best.1 > 0.0 {
+            // Crowded near the anchor: take the nearest free spot on a
+            // half-label grid over the whole bounds.
+            let distance = |c: [f64; 2]| (c[0] - anchor[0]).hypot(c[1] - anchor[1]);
+            let (step_x, step_y) = ((size[0] / 2.0).max(1e-6), (size[1] / 2.0).max(1e-6));
+            let mut y = bounds[1] + size[1] / 2.0;
+            while y <= bounds[3] - size[1] / 2.0 {
+                let mut x = bounds[0] + size[0] / 2.0;
+                while x <= bounds[2] - size[0] / 2.0 {
+                    if overlap([x, y]) == 0.0
+                        && (best.1 > 0.0 || distance([x, y]) < distance(best.0))
+                    {
+                        best = ([x, y], 0.0);
+                    }
+                    x += step_x;
+                }
+                y += step_y;
             }
         }
         placed.push((best.0, size));
@@ -249,6 +272,11 @@ mod tests {
         assert!(!point_in_polygon(&ring, average));
         let anchor = label_anchor(&ring, 0.01).expect("ring has area");
         assert!(point_in_polygon(&ring, anchor), "{anchor:?} is inside");
+        let coarse = label_anchor(&ring, 2.0).expect("ring has area");
+        assert!(
+            point_in_polygon(&ring, coarse),
+            "coarse {coarse:?} is inside"
+        );
         assert!(label_anchor(&[[0.0, 0.0], [1.0, 1.0]], 0.1).is_none());
         assert!(label_anchor(&[[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]], 0.1).is_none());
     }
@@ -261,6 +289,23 @@ mod tests {
             (anchor[0] - 2.0).abs() < 0.01 && (anchor[1] - 2.0).abs() < 0.01,
             "{anchor:?}"
         );
+    }
+
+    #[test]
+    fn crowded_labels_use_free_space_beyond_the_rings() {
+        let request = LabelRequest {
+            anchor: [50.0, 50.0],
+            size: [20.0, 8.0],
+            priority: 0,
+        };
+        let placed = layout_labels(&[request; 30], [0.0, 0.0, 100.0, 100.0]);
+        for (i, a) in placed.iter().enumerate() {
+            for b in &placed[i + 1..] {
+                let apart = (a.center[0] - b.center[0]).abs() >= 20.0
+                    || (a.center[1] - b.center[1]).abs() >= 8.0;
+                assert!(apart, "{a:?} overlaps {b:?}");
+            }
+        }
     }
 
     #[test]
