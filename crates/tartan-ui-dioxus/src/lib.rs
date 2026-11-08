@@ -1694,7 +1694,7 @@ mod tests {
 
     #[test]
     fn button_hover_and_active_use_accent_state_roles_without_affecting_disabled() {
-        // `:where` keeps host overrides of `.tartan-button` in charge, and the
+        // `:where` keeps the disabled filter from adding specificity, and the
         // derived fallback resolves at the button so scoped accents apply.
         let mix = "color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper))";
         let hover =
@@ -1738,6 +1738,10 @@ mod tests {
         // Inset shadow, not a border, so host padding cannot change the height.
         assert!(current.contains("box-shadow: inset 0 -2px 0 var(--tartan-accent)"));
         assert!(!current.contains("border-bottom"));
+        // Forced colours drop the shadow; the outline keeps the indicator.
+        assert!(STYLESHEET.contains(
+            "@media (forced-colors: active) { .tartan-nav__link--current { outline: 2px solid CanvasText;"
+        ));
         assert!(!current.contains("--tartan-accent-soft"));
     }
 
