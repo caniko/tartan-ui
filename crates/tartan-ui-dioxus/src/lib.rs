@@ -193,6 +193,58 @@ pub fn ThemeToggle(
     }
 }
 
+/// Settings-page form of [`ThemeToggle`]: a radio group for system, light and
+/// dark that applies and persists the choice the same way and restores it on
+/// mount (SSR renders `System` checked). `labels` are `[system, light, dark]`
+/// and default to English; each option carries `data-theme-preference` for
+/// host swatches.
+#[component]
+pub fn ThemeChoice(
+    #[props(default = "Theme".to_string())] legend: String,
+    #[props(default)] labels: Option<[String; 3]>,
+    #[props(default)] on_change: Option<EventHandler<ThemePreference>>,
+) -> Element {
+    let mut stored = use_signal(ThemePreference::default);
+    use_effect(move || {
+        spawn(async move {
+            if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
+                && let Some(restored) = ThemePreference::parse(&value)
+            {
+                stored.set(restored);
+            }
+        });
+    });
+    let labels = labels.unwrap_or_else(|| ["System", "Light", "Dark"].map(String::from));
+    let current = *stored.read();
+    let options = [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark];
+    rsx! {
+        fieldset { class: "tartan-theme-choice",
+            legend { "{legend}" }
+            for (preference, label) in options.into_iter().zip(labels) {
+                label {
+                    key: "{preference.as_str()}",
+                    class: "tartan-theme-choice__option",
+                    "data-theme-preference": preference.as_str(),
+                    input {
+                        r#type: "radio",
+                        name: THEME_STORAGE_KEY,
+                        value: preference.as_str(),
+                        checked: current == preference,
+                        onchange: move |_| {
+                            stored.set(preference);
+                            let _ = document::eval(&theme_apply_script(preference));
+                            if let Some(on_change) = on_change {
+                                on_change.call(preference);
+                            }
+                        },
+                    }
+                    " {label}"
+                }
+            }
+        }
+    }
+}
+
 #[component]
 pub fn Header(identity: Option<Identity>) -> Element {
     rsx! {
@@ -715,8 +767,12 @@ pub fn FacetSidebar(
     aria_label: String,
     on_toggle: EventHandler<(String, String, bool)>,
     #[props(default)] class: Option<String>,
+    /// Note under read-only categories; defaults to "Set in the query text".
+    #[props(default)]
+    read_only_note: Option<String>,
 ) -> Element {
     let class = class.unwrap_or_default();
+    let read_only_note = read_only_note.unwrap_or_else(|| "Set in the query text".to_string());
     rsx! {
         nav { class: "tartan-facet-sidebar {class}", aria_label: "{aria_label}",
             for group in groups {
@@ -726,7 +782,7 @@ pub fn FacetSidebar(
                     open: true,
                     class: "tartan-facet-group".to_string(),
                     for category in group.categories {
-                        FacetCategoryFields { key: "{category.key}", category, on_toggle }
+                        FacetCategoryFields { key: "{category.key}", category, on_toggle, read_only_note: read_only_note.clone() }
                     }
                 }
             }
@@ -738,6 +794,7 @@ pub fn FacetSidebar(
 fn FacetCategoryFields(
     category: tartan_ui_core::FacetCategory,
     on_toggle: EventHandler<(String, String, bool)>,
+    read_only_note: String,
 ) -> Element {
     let key = category.key.clone();
     rsx! {
@@ -762,7 +819,7 @@ fn FacetCategoryFields(
                         li { key: "{option.value}", "{option.label}" }
                     }
                 }
-                p { class: "tartan-facet-note", "Set in the query text" }
+                p { class: "tartan-facet-note", "{read_only_note}" }
             }
         }
     }
@@ -1561,6 +1618,12 @@ mod tests {
         // Read-only category: plain text for checked values, no checkbox.
         assert!(html.contains("Set in the query text"));
         assert!(html.contains("<li>PLAN</li>"), "{html}");
+        #[component]
+        fn Translated() -> Element {
+            rsx! { FacetSidebar { groups: facet_fixture(), aria_label: "Filter".to_string(), on_toggle: |_| {}, read_only_note: "In der Abfrage gesetzt".to_string() } }
+        }
+        let translated = dioxus_ssr::render_element(rsx! { Translated {} });
+        assert!(translated.contains("In der Abfrage gesetzt") && !translated.contains("Set in the query text"));
         assert!(!html.contains("MAP"));
         assert!(!html.contains("name=\"kind\""));
     }
@@ -1647,6 +1710,23 @@ mod tests {
         }
         // Uncontrolled SSR output starts at System (restored on the client).
         assert!(render_toggle(None).contains("Switch to light theme"));
+    }
+
+    #[test]
+    fn theme_choice_offers_three_named_radios_with_translatable_labels() {
+        #[component]
+        fn Fixture(labels: Option<[String; 3]>) -> Element {
+            rsx! { ThemeChoice { labels } }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture { labels: None } });
+        assert_eq!(html.matches("type=\"radio\"").count(), 3, "{html}");
+        assert_eq!(html.matches("name=\"tartan-theme\"").count(), 3);
+        assert!(html.contains("<legend>Theme</legend>"), "{html}");
+        assert!(html.contains("value=\"system\" checked"), "{html}");
+        assert!(html.contains("data-theme-preference=\"dark\""));
+        let labels = Some(["Système", "Clair", "Sombre"].map(String::from));
+        let html = dioxus_ssr::render_element(rsx! { Fixture { labels } });
+        assert!(html.contains(" Clair") && !html.contains(" Light"), "{html}");
     }
 
     #[test]
