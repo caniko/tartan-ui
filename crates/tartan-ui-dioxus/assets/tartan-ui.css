@@ -4,8 +4,12 @@
   --tartan-muted: var(--tb-ui-foreground-muted, #5a5550);
   --tartan-line: var(--tb-ui-border, #d9d9d6);
   --tartan-accent: var(--tb-ui-accent, #076678);
+  --tartan-accent-hover: var(--tb-ui-accent-hover);
+  --tartan-accent-active: var(--tb-ui-accent-active);
   --tartan-accent-soft: var(--tb-ui-selection-background, #f2f2f0);
-  --tartan-on-accent: var(--tb-ui-background, #ffffff);
+  --tartan-on-accent: var(--tb-ui-on-accent, var(--tb-ui-background, #ffffff));
+  --tartan-selection-background: var(--tb-ui-selection-background, Highlight);
+  --tartan-selection-foreground: var(--tb-ui-selection-foreground, HighlightText);
   --tartan-surface: var(--tb-ui-surface, #f2f2f0);
   --tartan-danger: var(--tb-status-error, #9d0006);
   --tartan-warning: var(--tb-status-warning, #af3a03);
@@ -77,6 +81,7 @@
 .tartan-combobox-option { padding: var(--tartan-space-1) var(--tartan-space-2); border-radius: var(--tartan-radius); cursor: pointer; }
 .tartan-combobox-option:hover, .tartan-combobox-option.is-active { background: var(--tartan-accent-soft); }
 .tartan-shell { min-height: 100vh; background: var(--tartan-paper); color: var(--tartan-ink); }
+.tartan-shell::selection, .tartan-shell ::selection { background: var(--tartan-selection-background); color: var(--tartan-selection-foreground); }
 .tartan-shell__main { width: min(100% - 3rem, 76rem); margin: 0 auto; padding: var(--tartan-space-8) 0 4rem; }
 .tartan-header { display: flex; align-items: center; justify-content: space-between; gap: var(--tartan-space-4); min-height: 3.5rem; padding: 0 var(--tartan-space-5); border-bottom: 1px solid var(--tartan-line); }
 .tartan-header__brand { color: inherit; font-weight: 700; text-decoration: none; }
@@ -85,7 +90,10 @@
 .tartan-header__email { font-size: .75rem; }
 .tartan-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tartan-space-1); }
 .tartan-nav__link { color: var(--tartan-muted); border-radius: var(--tartan-radius); padding: var(--tartan-space-2) var(--tartan-space-3); text-decoration: none; }
-.tartan-nav__link:hover, .tartan-nav__link--current { color: var(--tartan-ink); background: var(--tartan-accent-soft); }
+.tartan-nav__link:hover { color: var(--tartan-ink); background: var(--tartan-accent-soft); }
+.tartan-nav__link--current { color: var(--tartan-ink); background: var(--tartan-surface); box-shadow: inset 0 -2px 0 var(--tartan-accent); }
+/* Forced colours drop box-shadow; an outline keeps the current page visible without moving layout. */
+@media (forced-colors: active) { .tartan-nav__link--current { outline: 2px solid CanvasText; outline-offset: -2px; } }
 .tartan-page-layout { display: grid; gap: var(--tartan-space-6); }
 .tartan-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--tartan-space-4); }
 .tartan-tag-list { display: flex; flex-wrap: wrap; gap: var(--tartan-space-2); margin: 0; padding: 0; list-style: none; }
@@ -108,14 +116,16 @@
 .tartan-resource-card__body > .tartan-progress,
 .tartan-resource-card__body > .tartan-metrics { margin-top: var(--tartan-space-4); }
 .tartan-resource-card h2 { margin: 0; font-size: 1.25rem; }
-.tartan-button { display: inline-flex; width: fit-content; border: 1px solid var(--tartan-accent); border-radius: var(--tartan-radius); background: var(--tartan-accent); color: var(--tartan-on-accent); padding: var(--tartan-space-2) var(--tartan-space-3); text-decoration: none; }
-.tartan-button:hover { opacity: .88; }
+.tartan-button { display: inline-flex; width: fit-content; border: 1px solid var(--tartan-button-bg, var(--tartan-accent)); border-radius: var(--tartan-radius); background: var(--tartan-button-bg, var(--tartan-accent)); color: var(--tartan-on-accent); padding: var(--tartan-space-2) var(--tartan-space-3); text-decoration: none; }
+/* States only swap the colour variable, so a host's own button background wins in every state. */
+.tartan-button:where(:not(:disabled):not([aria-disabled="true"])):hover { --tartan-button-bg: var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper))); }
+.tartan-button:where(:not(:disabled):not([aria-disabled="true"])):active { --tartan-button-bg: var(--tartan-accent-active, var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper)))); }
 .tartan-theme-toggle { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: transparent; color: inherit; padding: var(--tartan-space-2); cursor: pointer; }
 .tartan-theme-toggle:hover { background: var(--tartan-accent-soft); }
 .tartan-icon { flex: none; vertical-align: middle; }
 .tartan-progress__labels { display: flex; justify-content: space-between; gap: var(--tartan-space-4); margin-bottom: var(--tartan-space-1); font-size: .75rem; color: var(--tartan-muted); }
 .tartan-progress__track { overflow: hidden; height: var(--tartan-space-2); border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: var(--tartan-paper); }
-.tartan-progress__value { height: 100%; background: var(--tartan-ink); }
+.tartan-progress__value { height: 100%; background: var(--tartan-accent); }
 .tartan-metrics { display: flex; flex-wrap: wrap; gap: var(--tartan-space-6); padding: var(--tartan-space-4) 0; border-block: 1px solid var(--tartan-line); }
 .tartan-metric { display: grid; gap: var(--tartan-space-1); min-width: 7rem; }
 .tartan-metric strong { font-size: 1.6rem; }
@@ -128,7 +138,7 @@
 .tartan-feedback--warning { border-color: var(--tartan-warning); }
 .tartan-feedback--error { border-color: var(--tartan-danger); }
 .tartan-loading { display: inline-flex; align-items: center; gap: var(--tartan-space-3); color: var(--tartan-muted); }
-.tartan-loading__spinner { width: var(--tartan-space-4); height: var(--tartan-space-4); border: 2px solid var(--tartan-line); border-top-color: var(--tartan-ink); border-radius: 50%; animation: tartan-loading-spin .8s linear infinite; }
+.tartan-loading__spinner { width: var(--tartan-space-4); height: var(--tartan-space-4); border: 2px solid var(--tartan-line); border-top-color: var(--tartan-accent); border-radius: 50%; animation: tartan-loading-spin .8s linear infinite; }
 @keyframes tartan-loading-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .tartan-loading__spinner { animation: none; }
