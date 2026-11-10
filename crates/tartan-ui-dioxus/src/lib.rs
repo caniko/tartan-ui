@@ -1201,6 +1201,10 @@ pub fn QueryCombobox(
                         id: "{id}-listbox",
                         class: "tartan-combobox-list",
                         role: "listbox",
+                        // A scrollable list is keyboard-focusable in Chromium;
+                        // options are reached through aria-activedescendant, and
+                        // focusing the list would blur the input and close it.
+                        tabindex: "-1",
                         aria_label: "{label} suggestions",
                         for (heading, index, suggestion) in rows {
                             Fragment { key: "{index}:{suggestion.label}",
@@ -1395,6 +1399,8 @@ mod tests {
             "{html}"
         );
         assert!(html.contains("id=\"q-mirror\"") && html.contains("aria-hidden=\"true\""));
+        // Tab leaves the input for the next control, never the scrollable list.
+        assert!(html.contains("role=\"listbox\" tabindex=\"-1\""), "{html}");
         // Errors no longer hide or alert by themselves.
         assert!(html.contains("role=\"status\"") && !html.contains("role=\"alert\""));
         // Collapsed until opened, so the footer is not rendered yet.
