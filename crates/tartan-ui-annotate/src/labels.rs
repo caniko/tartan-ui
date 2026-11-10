@@ -116,10 +116,12 @@ pub fn layout_labels(requests: &[LabelRequest], bounds: [f64; 4]) -> Vec<LabelPl
         let clamp = |center: [f64; 2]| {
             let fit = |value: f64, low: f64, high: f64, extent: f64| {
                 let (low, high) = (low + extent / 2.0, high - extent / 2.0);
-                if low > high {
-                    (low + high) / 2.0
-                } else {
+                // `clamp` panics on NaN bounds, so a non-finite size must
+                // take the else branch.
+                if low <= high {
                     value.clamp(low, high)
+                } else {
+                    (low + high) / 2.0
                 }
             };
             [
@@ -340,5 +342,15 @@ mod tests {
                     && a.center[1] <= 96.0
             );
         }
+    }
+
+    #[test]
+    fn a_non_finite_size_does_not_panic() {
+        let request = LabelRequest {
+            anchor: [50.0, 50.0],
+            size: [f64::NAN, 8.0],
+            priority: 0,
+        };
+        assert_eq!(layout_labels(&[request], [0.0, 0.0, 100.0, 100.0]).len(), 1);
     }
 }
