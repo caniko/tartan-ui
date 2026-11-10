@@ -860,6 +860,10 @@ fn key_action(
     autoselect: bool,
     blocking: bool,
 ) -> KeyAction {
+    // Tab completes only an option the user highlighted with the arrow keys.
+    // Autoselected options never capture Tab: the popup reopens with fresh
+    // suggestions after every pick, so a keyboard user could not leave the box.
+    let highlighted = active.filter(|index| expanded && *index < count);
     let active = effective_active(active, expanded, count, autoselect);
     match key {
         "ArrowDown" if count > 0 => {
@@ -873,7 +877,7 @@ fn key_action(
             None if blocking => KeyAction::Blocked,
             None => KeyAction::Submit,
         },
-        "Tab" if expanded && count > 0 => KeyAction::Pick(active.unwrap_or(0)),
+        "Tab" => highlighted.map_or(KeyAction::PassThrough, KeyAction::Pick),
         "Escape" => KeyAction::Close,
         _ => KeyAction::PassThrough,
     }
@@ -984,7 +988,8 @@ fn sync_input(id: &str, caret_utf16: Option<usize>) {
 /// Errors never hide the list: they render under the field as a status hint,
 /// and become an alert when Enter is pressed while `blocking`. Enter picks the
 /// highlighted row (row 0 under `autoselect`), otherwise submits; Tab accepts
-/// the highlighted row (or row 0) while rows are showing.
+/// only a row the user highlighted with the arrow keys and otherwise moves
+/// focus on, so the box is never a keyboard trap.
 ///
 /// A pick keeps the list open, so a completion can lead straight into the
 /// next step; a pick that navigates or submits replaces the page anyway.
@@ -1268,9 +1273,10 @@ mod tests {
     }
 
     #[test]
-    fn key_action_tab_accepts_only_when_rows_show() {
+    fn key_action_tab_accepts_only_a_highlighted_row() {
         use KeyAction::*;
-        assert_eq!(key_action("Tab", None, true, 3, false, false), Pick(0));
+        assert_eq!(key_action("Tab", None, true, 3, false, false), PassThrough);
+        assert_eq!(key_action("Tab", None, true, 3, true, false), PassThrough);
         assert_eq!(key_action("Tab", Some(1), true, 3, false, false), Pick(1));
         assert_eq!(key_action("Tab", None, true, 0, false, false), PassThrough);
         assert_eq!(key_action("Tab", None, false, 3, false, false), PassThrough);
