@@ -7,7 +7,8 @@ use crate::polygon::{point_in_polygon, point_segment_distance};
 /// inaccessibility), found to within `precision` content units. Unlike a
 /// vertex average it stays inside thin, L-shaped and concave rooms, so a label
 /// placed there names the shape it sits in. `None` for fewer than three
-/// vertices or a ring without area.
+/// vertices, a ring without area, or a sliver too thin to find an interior
+/// point within the search budget.
 pub fn label_anchor(ring: &[[f64; 2]], precision: f64) -> Option<[f64; 2]> {
     let mut ring = ring.to_vec();
     if ring.len() > 1 && ring.first() == ring.last() {
@@ -50,22 +51,31 @@ pub fn label_anchor(ring: &[[f64; 2]], precision: f64) -> Option<[f64; 2]> {
     if middle.distance > best.distance {
         best = middle;
     }
+    // ponytail: a fixed split budget bounds thin concave rooms (a sliver L
+    // can otherwise split cells without end looking for its inside); a room
+    // that needs more than this gets None rather than a point outside it.
+    const MAX_SPLITS: usize = 1 << 16;
+    let mut splits = 0;
     while let Some(cell) = queue.pop() {
-        // Keep refining until some interior point is known, whatever the
-        // precision, so a coarse precision cannot return a point outside.
-        let known = best.distance.max(cell.distance);
-        if cell.potential - known > precision || (known <= 0.0 && cell.potential > 0.0) {
-            let half = cell.half / 2.0;
-            for [dx, dy] in [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]] {
-                let center = [cell.center[0] + dx * half, cell.center[1] + dy * half];
-                queue.push(Cell::new(center, half, &ring));
-            }
-        }
+        let (center, half, potential) = (cell.center, cell.half / 2.0, cell.potential);
         if cell.distance > best.distance {
             best = cell;
         }
+        // Keep refining until some interior point is known, whatever the
+        // precision, so a coarse precision cannot return a point outside.
+        let known = best.distance;
+        if potential - known > precision || (known <= 0.0 && potential > 0.0) {
+            if splits == MAX_SPLITS {
+                break;
+            }
+            splits += 1;
+            for [dx, dy] in [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]] {
+                let child = [center[0] + dx * half, center[1] + dy * half];
+                queue.push(Cell::new(child, half, &ring));
+            }
+        }
     }
-    Some(best.center)
+    (best.distance > 0.0).then_some(best.center)
 }
 
 /// A label box to place: centred on `anchor` when possible.
@@ -167,7 +177,12 @@ pub fn layout_labels(requests: &[LabelRequest], bounds: [f64; 4]) -> Vec<LabelPl
             // Crowded near the anchor: take the nearest free spot on a
             // half-label grid over the whole bounds.
             let distance = |c: [f64; 2]| (c[0] - anchor[0]).hypot(c[1] - anchor[1]);
-            let (step_x, step_y) = ((size[0] / 2.0).max(1e-6), (size[1] / 2.0).max(1e-6));
+            // Floor the step at 1/1000 of the bounds so a tiny label cannot
+            // make the grid huge.
+            let (step_x, step_y) = (
+                (size[0] / 2.0).max((bounds[2] - bounds[0]) * 1e-3),
+                (size[1] / 2.0).max((bounds[3] - bounds[1]) * 1e-3),
+            );
             let mut y = bounds[1] + size[1] / 2.0;
             while y <= bounds[3] - size[1] / 2.0 {
                 let mut x = bounds[0] + size[0] / 2.0;
@@ -370,6 +385,47 @@ mod tests {
         };
         let placed = layout_labels(
             &[request([20.0, 8.0]), request([0.0, 0.0])],
+            [0.0, 0.0, 100.0, 100.0],
+        );
+        assert_eq!(placed.len(), 2);
+    }
+
+    #[test]
+    fn concave_sliver_anchor_terminates_and_never_lands_outside() {
+        // Neither the centroid nor the box middle is inside these, so the
+        // search must find the inside by splitting cells.
+        let thin_l = [
+            [0.0, 0.0],
+            [1000.0, 0.0],
+            [1000.0, 1e-6],
+            [1e-6, 1e-6],
+            [1e-6, 1000.0],
+            [0.0, 1000.0],
+        ];
+        let step = [
+            [0.0, 0.0],
+            [1000.0, 0.0],
+            [1000.0, 1e-7],
+            [100.0, 1e-7],
+            [100.0, 1e-6],
+            [0.0, 1e-6],
+        ];
+        for ring in [&thin_l[..], &step[..]] {
+            if let Some(anchor) = label_anchor(ring, 0.1) {
+                assert!(point_in_polygon(ring, anchor), "{anchor:?} is inside");
+            }
+        }
+    }
+
+    #[test]
+    fn tiny_crowded_labels_keep_the_grid_small() {
+        let request = |size| LabelRequest {
+            anchor: [50.0, 50.0],
+            size,
+            priority: 0,
+        };
+        let placed = layout_labels(
+            &[request([20.0, 8.0]), request([1e-3, 1e-3])],
             [0.0, 0.0, 100.0, 100.0],
         );
         assert_eq!(placed.len(), 2);
