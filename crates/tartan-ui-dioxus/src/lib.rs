@@ -311,6 +311,8 @@ pub fn PaletteChoice(
                 .await
                 && known.contains(&value)
             {
+                // Hosts without THEME_INIT_SCRIPT still get the palette.
+                let _ = document::eval(&palette_apply_script(&value));
                 stored.set(value);
             }
         });
