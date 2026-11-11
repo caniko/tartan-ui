@@ -5,6 +5,21 @@
 
 pub const LAYOUT_STYLES: &str = include_str!("../assets/layout.css");
 
+/// `localStorage` key for the light/dark choice: `system`, `light` or `dark`.
+pub const THEME_STORAGE_KEY: &str = "tartan-theme";
+
+/// `localStorage` key for the palette id mirrored on `<html data-palette>`.
+pub const PALETTE_STORAGE_KEY: &str = "tartan-palette";
+
+/// Inline `<head>` script that restores the stored mode (`data-theme`) and
+/// palette (`data-palette`) before first paint. Static sites and Dioxus hosts
+/// on the same origin share the choice. Stored palette values are untrusted,
+/// so only ids of 1-32 `[a-z0-9-]` characters are applied.
+pub const THEME_INIT_SCRIPT: &str = "try{var d=document.documentElement,s=localStorage,\
+t=s.getItem('tartan-theme'),p=s.getItem('tartan-palette');\
+if(t==='light'||t==='dark')d.setAttribute('data-theme',t);\
+if(p&&/^[a-z0-9-]{1,32}$/.test(p))d.setAttribute('data-palette',p)}catch(e){}";
+
 #[cfg(test)]
 mod tests {
     const STYLESHEET: &str = include_str!("../assets/layout.css");

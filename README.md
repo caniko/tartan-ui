@@ -54,8 +54,16 @@ the accent only for primary actions, selection and the focus ring.
 value. `ThemeToggle` (`tartan-ui-dioxus`) cycles it, writes `data-theme` on
 `<html>` (removed for `System`), persists it in `localStorage` as
 `tartan-theme` and restores it on mount. It needs no props; pass `preference`
-to control the displayed value and `on_toggle` to observe changes. Put
-`THEME_INIT_SCRIPT` in the document head to restore before first paint.
+to control the displayed value and `on_toggle` to observe changes.
+`ThemeChoice` is the same value as a settings-page radio group.
+
+`PaletteChoice` picks a colour palette from host-supplied `(id, label)` pairs:
+it writes `data-palette` on `<html>` and persists the id as `tartan-palette`.
+The host's broker stylesheet scopes each palette under `[data-palette=id]`;
+ids are 1-32 `[a-z0-9-]` characters. Put `THEME_INIT_SCRIPT`
+(`tartan-ui-assets`, re-exported by `tartan-ui-dioxus`) in the document head to
+restore mode and palette before first paint; static sites on the same origin
+use the same script, so a palette picked in an app carries over to them.
 
 ## Icons
 
