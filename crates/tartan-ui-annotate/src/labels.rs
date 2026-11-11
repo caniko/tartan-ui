@@ -456,13 +456,14 @@ mod tests {
         let bounds = [1e9, 1e9, 1e9 + 1e-6, 1e9 + 1e-6];
         let placed = layout_labels(&[request([5e-7; 2]), request([1e-12; 2])], bounds);
         assert_eq!(placed.len(), 2);
+        // A 1e-3 seed cell at x = 1e15, where one ulp is 0.125.
         let ring = [
-            [1e9, 1e9],
-            [1e9 + 1e-6, 1e9],
-            [1e9 + 1e-6, 1e9 + 1e-6],
-            [1e9, 1e9 + 1e-6],
+            [1e15, 0.0],
+            [1e15 + 0.125, 0.0],
+            [1e15 + 0.125, 1e-3],
+            [1e15, 1e-3],
         ];
-        let _ = label_anchor(&ring, 0.0);
+        assert!(label_anchor(&ring, 0.0).is_some());
     }
 
     #[test]
