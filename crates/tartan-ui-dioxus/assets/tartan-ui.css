@@ -122,6 +122,8 @@
 .tartan-button:where(:not(:disabled):not([aria-disabled="true"])):active { --tartan-button-bg: var(--tartan-accent-active, var(--tartan-accent-hover, color-mix(in srgb, var(--tartan-accent) 88%, var(--tartan-paper)))); }
 .tartan-theme-toggle { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: transparent; color: inherit; padding: var(--tartan-space-2); cursor: pointer; }
 .tartan-theme-toggle:hover { background: var(--tartan-accent-soft); }
+.tartan-theme-choice { display: grid; gap: var(--tartan-space-2); border: 0; padding: 0; margin: 0; }
+.tartan-theme-choice__option { display: flex; align-items: center; gap: var(--tartan-space-2); cursor: pointer; }
 .tartan-icon { flex: none; vertical-align: middle; }
 .tartan-progress__labels { display: flex; justify-content: space-between; gap: var(--tartan-space-4); margin-bottom: var(--tartan-space-1); font-size: .75rem; color: var(--tartan-muted); }
 .tartan-progress__track { overflow: hidden; height: var(--tartan-space-2); border: 1px solid var(--tartan-line); border-radius: var(--tartan-radius); background: var(--tartan-paper); }

@@ -193,6 +193,67 @@ pub fn ThemeToggle(
     }
 }
 
+/// Settings-page form of [`ThemeToggle`]: a radio group for system, light and
+/// dark that applies and persists the choice the same way and restores it on
+/// mount (SSR renders `System` checked). As with [`ThemeToggle`], a
+/// `preference` lets the host control the checked option, for example to keep
+/// it in step with a header toggle. `labels` are `[system, light, dark]`
+/// and default to English; each option carries `data-theme-preference` for
+/// host swatches.
+#[component]
+pub fn ThemeChoice(
+    #[props(default = "Theme".to_string())] legend: String,
+    #[props(default)] preference: Option<ThemePreference>,
+    #[props(default)] labels: Option<[String; 3]>,
+    #[props(default)] on_change: Option<EventHandler<ThemePreference>>,
+) -> Element {
+    let mut stored = use_signal(|| preference.unwrap_or_default());
+    use_effect(move || {
+        spawn(async move {
+            if let Some(preference) = preference {
+                let _ = document::eval(&theme_apply_script(preference));
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
+                && let Some(restored) = ThemePreference::parse(&value)
+            {
+                stored.set(restored);
+            }
+        });
+    });
+    let labels = labels.unwrap_or_else(|| ["System", "Light", "Dark"].map(String::from));
+    let current = preference.unwrap_or_else(|| *stored.read());
+    let options = [
+        ThemePreference::System,
+        ThemePreference::Light,
+        ThemePreference::Dark,
+    ];
+    rsx! {
+        fieldset { class: "tartan-theme-choice",
+            legend { "{legend}" }
+            for (preference, label) in options.into_iter().zip(labels) {
+                label {
+                    key: "{preference.as_str()}",
+                    class: "tartan-theme-choice__option",
+                    "data-theme-preference": preference.as_str(),
+                    input {
+                        r#type: "radio",
+                        name: THEME_STORAGE_KEY,
+                        value: preference.as_str(),
+                        checked: current == preference,
+                        onchange: move |_| {
+                            stored.set(preference);
+                            let _ = document::eval(&theme_apply_script(preference));
+                            if let Some(on_change) = on_change {
+                                on_change.call(preference);
+                            }
+                        },
+                    }
+                    " {label}"
+                }
+            }
+        }
+    }
+}
+
 #[component]
 pub fn Header(identity: Option<Identity>) -> Element {
     rsx! {
@@ -715,8 +776,12 @@ pub fn FacetSidebar(
     aria_label: String,
     on_toggle: EventHandler<(String, String, bool)>,
     #[props(default)] class: Option<String>,
+    /// Note under read-only categories; defaults to "Set in the query text".
+    #[props(default)]
+    read_only_note: Option<String>,
 ) -> Element {
     let class = class.unwrap_or_default();
+    let read_only_note = read_only_note.unwrap_or_else(|| "Set in the query text".to_string());
     rsx! {
         nav { class: "tartan-facet-sidebar {class}", aria_label: "{aria_label}",
             for group in groups {
@@ -726,7 +791,7 @@ pub fn FacetSidebar(
                     open: true,
                     class: "tartan-facet-group".to_string(),
                     for category in group.categories {
-                        FacetCategoryFields { key: "{category.key}", category, on_toggle }
+                        FacetCategoryFields { key: "{category.key}", category, on_toggle, read_only_note: read_only_note.clone() }
                     }
                 }
             }
@@ -738,6 +803,7 @@ pub fn FacetSidebar(
 fn FacetCategoryFields(
     category: tartan_ui_core::FacetCategory,
     on_toggle: EventHandler<(String, String, bool)>,
+    read_only_note: String,
 ) -> Element {
     let key = category.key.clone();
     rsx! {
@@ -762,7 +828,7 @@ fn FacetCategoryFields(
                         li { key: "{option.value}", "{option.label}" }
                     }
                 }
-                p { class: "tartan-facet-note", "Set in the query text" }
+                p { class: "tartan-facet-note", "{read_only_note}" }
             }
         }
     }
@@ -803,6 +869,10 @@ fn key_action(
     autoselect: bool,
     blocking: bool,
 ) -> KeyAction {
+    // Tab completes only an option the user highlighted with the arrow keys.
+    // Autoselected options never capture Tab: the popup reopens with fresh
+    // suggestions after every pick, so a keyboard user could not leave the box.
+    let highlighted = active.filter(|index| expanded && *index < count);
     let active = effective_active(active, expanded, count, autoselect);
     match key {
         "ArrowDown" if count > 0 => {
@@ -816,7 +886,7 @@ fn key_action(
             None if blocking => KeyAction::Blocked,
             None => KeyAction::Submit,
         },
-        "Tab" if expanded && count > 0 => KeyAction::Pick(active.unwrap_or(0)),
+        "Tab" => highlighted.map_or(KeyAction::PassThrough, KeyAction::Pick),
         "Escape" => KeyAction::Close,
         _ => KeyAction::PassThrough,
     }
@@ -927,7 +997,8 @@ fn sync_input(id: &str, caret_utf16: Option<usize>) {
 /// Errors never hide the list: they render under the field as a status hint,
 /// and become an alert when Enter is pressed while `blocking`. Enter picks the
 /// highlighted row (row 0 under `autoselect`), otherwise submits; Tab accepts
-/// the highlighted row (or row 0) while rows are showing.
+/// only a row the user highlighted with the arrow keys and otherwise moves
+/// focus on, so the box is never a keyboard trap.
 ///
 /// A pick keeps the list open, so a completion can lead straight into the
 /// next step; a pick that navigates or submits replaces the page anyway.
@@ -984,6 +1055,16 @@ pub fn QueryCombobox(
     let scroll_id = id.clone();
     let effect_id = id.clone();
     let has_marks = !marks.is_empty();
+    // The hint and current errors describe the input, so focusing it
+    // announces them, not only the live region when they change.
+    let described_by = [
+        hint.as_ref().map(|_| format!("{id}-hint")),
+        has_errors.then(|| format!("{id}-errors")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
     // `Cell` so the effect only moves the caret when `caret` itself changed,
     // not on every keystroke while the caller still holds the old offset.
     let applied_caret = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(None::<usize>)));
@@ -1041,6 +1122,8 @@ pub fn QueryCombobox(
                     aria_autocomplete: "list",
                     aria_activedescendant: active_index.map(|index| format!("{id}-option-{index}")),
                     aria_invalid: has_errors.to_string(),
+                    aria_describedby: (!described_by.is_empty()).then_some(described_by),
+                    aria_errormessage: has_errors.then(|| format!("{id}-errors")),
                     oninput: move |event| {
                         active.set(None);
                         alerting.set(false);
@@ -1105,9 +1188,10 @@ pub fn QueryCombobox(
                     },
                 }
             }
-            if let Some(hint) = hint { p { class: "tartan-field__hint", "{hint}" } }
+            if let Some(hint) = hint { p { id: "{id}-hint", class: "tartan-field__hint", "{hint}" } }
             if has_errors {
                 div {
+                    id: "{id}-errors",
                     class: "tartan-combobox-errors",
                     role: if alerting() { "alert" } else { "status" },
                     for error in errors {
@@ -1126,6 +1210,10 @@ pub fn QueryCombobox(
                         id: "{id}-listbox",
                         class: "tartan-combobox-list",
                         role: "listbox",
+                        // A scrollable list is keyboard-focusable in Chromium;
+                        // options are reached through aria-activedescendant, and
+                        // focusing the list would blur the input and close it.
+                        tabindex: "-1",
                         aria_label: "{label} suggestions",
                         for (heading, index, suggestion) in rows {
                             Fragment { key: "{index}:{suggestion.label}",
@@ -1198,9 +1286,10 @@ mod tests {
     }
 
     #[test]
-    fn key_action_tab_accepts_only_when_rows_show() {
+    fn key_action_tab_accepts_only_a_highlighted_row() {
         use KeyAction::*;
-        assert_eq!(key_action("Tab", None, true, 3, false, false), Pick(0));
+        assert_eq!(key_action("Tab", None, true, 3, false, false), PassThrough);
+        assert_eq!(key_action("Tab", None, true, 3, true, false), PassThrough);
         assert_eq!(key_action("Tab", Some(1), true, 3, false, false), Pick(1));
         assert_eq!(key_action("Tab", None, true, 0, false, false), PassThrough);
         assert_eq!(key_action("Tab", None, false, 3, false, false), PassThrough);
@@ -1319,6 +1408,8 @@ mod tests {
             "{html}"
         );
         assert!(html.contains("id=\"q-mirror\"") && html.contains("aria-hidden=\"true\""));
+        // Tab leaves the input for the next control, never the scrollable list.
+        assert!(html.contains("role=\"listbox\" tabindex=\"-1\""), "{html}");
         // Errors no longer hide or alert by themselves.
         assert!(html.contains("role=\"status\"") && !html.contains("role=\"alert\""));
         // Collapsed until opened, so the footer is not rendered yet.
@@ -1548,6 +1639,15 @@ mod tests {
         // Read-only category: plain text for checked values, no checkbox.
         assert!(html.contains("Set in the query text"));
         assert!(html.contains("<li>PLAN</li>"), "{html}");
+        #[component]
+        fn Translated() -> Element {
+            rsx! { FacetSidebar { groups: facet_fixture(), aria_label: "Filter".to_string(), on_toggle: |_| {}, read_only_note: "In der Abfrage gesetzt".to_string() } }
+        }
+        let translated = dioxus_ssr::render_element(rsx! { Translated {} });
+        assert!(
+            translated.contains("In der Abfrage gesetzt")
+                && !translated.contains("Set in the query text")
+        );
         assert!(!html.contains("MAP"));
         assert!(!html.contains("name=\"kind\""));
     }
@@ -1581,6 +1681,12 @@ mod tests {
         assert!(html.contains("role=\"status\""));
         assert!(html.contains("Unclosed quote"));
         assert!(html.contains("Try period:1900"));
+        assert!(
+            html.contains("aria-describedby=\"q-hint q-errors\""),
+            "{html}"
+        );
+        assert!(html.contains("aria-errormessage=\"q-errors\""));
+        assert!(html.contains("id=\"q-hint\"") && html.contains("id=\"q-errors\""));
     }
 
     #[test]
@@ -1599,6 +1705,7 @@ mod tests {
         assert!(html.contains("role=\"combobox\""));
         assert!(!html.contains("role=\"alert\""));
         assert!(!html.contains("role=\"listbox\""));
+        assert!(!html.contains("aria-describedby") && !html.contains("aria-errormessage"));
     }
 
     fn render_toggle(preference: Option<ThemePreference>) -> String {
@@ -1627,6 +1734,33 @@ mod tests {
         }
         // Uncontrolled SSR output starts at System (restored on the client).
         assert!(render_toggle(None).contains("Switch to light theme"));
+    }
+
+    #[test]
+    fn theme_choice_offers_three_named_radios_with_translatable_labels() {
+        #[component]
+        fn Fixture(labels: Option<[String; 3]>) -> Element {
+            rsx! { ThemeChoice { labels } }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture { labels: None } });
+        assert_eq!(html.matches("type=\"radio\"").count(), 3, "{html}");
+        assert_eq!(html.matches("name=\"tartan-theme\"").count(), 3);
+        assert!(html.contains("<legend>Theme</legend>"), "{html}");
+        assert!(html.contains("value=\"system\" checked"), "{html}");
+        assert!(html.contains("data-theme-preference=\"dark\""));
+        let labels = Some(["Système", "Clair", "Sombre"].map(String::from));
+        let html = dioxus_ssr::render_element(rsx! { Fixture { labels } });
+        assert!(
+            html.contains(" Clair") && !html.contains(" Light"),
+            "{html}"
+        );
+        #[component]
+        fn Controlled() -> Element {
+            rsx! { ThemeChoice { preference: ThemePreference::Dark } }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Controlled {} });
+        assert!(html.contains("value=\"dark\" checked"), "{html}");
+        assert!(!html.contains("value=\"system\" checked"), "{html}");
     }
 
     #[test]
