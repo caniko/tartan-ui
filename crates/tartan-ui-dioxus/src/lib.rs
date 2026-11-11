@@ -216,7 +216,11 @@ pub fn ThemeChoice(
     });
     let labels = labels.unwrap_or_else(|| ["System", "Light", "Dark"].map(String::from));
     let current = *stored.read();
-    let options = [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark];
+    let options = [
+        ThemePreference::System,
+        ThemePreference::Light,
+        ThemePreference::Dark,
+    ];
     rsx! {
         fieldset { class: "tartan-theme-choice",
             legend { "{legend}" }
@@ -1635,7 +1639,10 @@ mod tests {
             rsx! { FacetSidebar { groups: facet_fixture(), aria_label: "Filter".to_string(), on_toggle: |_| {}, read_only_note: "In der Abfrage gesetzt".to_string() } }
         }
         let translated = dioxus_ssr::render_element(rsx! { Translated {} });
-        assert!(translated.contains("In der Abfrage gesetzt") && !translated.contains("Set in the query text"));
+        assert!(
+            translated.contains("In der Abfrage gesetzt")
+                && !translated.contains("Set in the query text")
+        );
         assert!(!html.contains("MAP"));
         assert!(!html.contains("name=\"kind\""));
     }
@@ -1738,7 +1745,10 @@ mod tests {
         assert!(html.contains("data-theme-preference=\"dark\""));
         let labels = Some(["Système", "Clair", "Sombre"].map(String::from));
         let html = dioxus_ssr::render_element(rsx! { Fixture { labels } });
-        assert!(html.contains(" Clair") && !html.contains(" Light"), "{html}");
+        assert!(
+            html.contains(" Clair") && !html.contains(" Light"),
+            "{html}"
+        );
     }
 
     #[test]
