@@ -38,7 +38,14 @@ pub fn label_anchor(ring: &[[f64; 2]], precision: f64) -> Option<[f64; 2]> {
         let mut y = min[1];
         while y < max[1] {
             queue.push(Cell::new([x + half, y + half], half, &ring));
+            // Far from the origin a tiny step can round away; stop there.
+            if y + cell_size <= y {
+                break;
+            }
             y += cell_size;
+        }
+        if x + cell_size <= x {
+            break;
         }
         x += cell_size;
     }
@@ -192,7 +199,14 @@ pub fn layout_labels(requests: &[LabelRequest], bounds: [f64; 4]) -> Vec<LabelPl
                     {
                         best = ([x, y], 0.0);
                     }
+                    // Far from the origin a tiny step can round away.
+                    if x + step_x <= x {
+                        break;
+                    }
                     x += step_x;
+                }
+                if y + step_y <= y {
+                    break;
                 }
                 y += step_y;
             }
@@ -429,6 +443,26 @@ mod tests {
             [0.0, 0.0, 100.0, 100.0],
         );
         assert_eq!(placed.len(), 2);
+    }
+
+    #[test]
+    fn grids_far_from_the_origin_still_advance() {
+        // At 1e9 a step below one ulp rounds away: x + step == x.
+        let request = |size| LabelRequest {
+            anchor: [1e9 + 5e-7; 2],
+            size,
+            priority: 0,
+        };
+        let bounds = [1e9, 1e9, 1e9 + 1e-6, 1e9 + 1e-6];
+        let placed = layout_labels(&[request([5e-7; 2]), request([1e-12; 2])], bounds);
+        assert_eq!(placed.len(), 2);
+        let ring = [
+            [1e9, 1e9],
+            [1e9 + 1e-6, 1e9],
+            [1e9 + 1e-6, 1e9 + 1e-6],
+            [1e9, 1e9 + 1e-6],
+        ];
+        let _ = label_anchor(&ring, 0.0);
     }
 
     #[test]
