@@ -21,12 +21,15 @@ pub fn label_anchor(ring: &[[f64; 2]], precision: f64) -> Option<[f64; 2]> {
         min = [min[0].min(*x), min[1].min(*y)];
         max = [max[0].max(*x), max[1].max(*y)];
     }
-    let cell_size = (max[0] - min[0]).min(max[1] - min[1]);
+    let (width, height) = (max[0] - min[0], max[1] - min[1]);
     let (area, centroid) = area_centroid(&ring);
-    if cell_size <= 0.0 || area.abs() <= f64::EPSILON {
+    if width.min(height) <= 0.0 || area.abs() <= f64::EPSILON {
         return None;
     }
-    let precision = precision.max(cell_size * 1e-6);
+    // Seed cells no smaller than the precision, so a sliver room cannot
+    // queue billions of cells along its long side.
+    let precision = precision.max(width.max(height) * 1e-4);
+    let cell_size = width.min(height).max(precision);
     let mut queue = BinaryHeap::new();
     let half = cell_size / 2.0;
     let mut x = min[0];
@@ -158,7 +161,9 @@ pub fn layout_labels(requests: &[LabelRequest], bounds: [f64; 4]) -> Vec<LabelPl
                 break;
             }
         }
-        if best.1 > 0.0 {
+        // A zero, negative or non-finite size would step the grid by 1e-6.
+        let sized = size.iter().all(|v| v.is_finite() && *v > 0.0);
+        if best.1 > 0.0 && sized {
             // Crowded near the anchor: take the nearest free spot on a
             // half-label grid over the whole bounds.
             let distance = |c: [f64; 2]| (c[0] - anchor[0]).hypot(c[1] - anchor[1]);
@@ -352,5 +357,29 @@ mod tests {
             priority: 0,
         };
         assert_eq!(layout_labels(&[request], [0.0, 0.0, 100.0, 100.0]).len(), 1);
+    }
+
+    #[test]
+    fn crowded_empty_labels_skip_the_grid_search() {
+        // A zero-width label (an unnamed room) under a placed label used to
+        // walk the grid in 1e-6 steps.
+        let request = |size| LabelRequest {
+            anchor: [50.0, 50.0],
+            size,
+            priority: 0,
+        };
+        let placed = layout_labels(
+            &[request([20.0, 8.0]), request([0.0, 0.0])],
+            [0.0, 0.0, 100.0, 100.0],
+        );
+        assert_eq!(placed.len(), 2);
+    }
+
+    #[test]
+    fn sliver_room_anchor_stays_bounded() {
+        // Seeding at the thin side would queue about 1e9 cells here.
+        let ring = [[0.0, 0.0], [1000.0, 0.0], [1000.0, 1e-6], [0.0, 1e-6]];
+        let anchor = label_anchor(&ring, 0.1).expect("ring has area");
+        assert!(point_in_polygon(&ring, anchor), "{anchor:?} is inside");
     }
 }

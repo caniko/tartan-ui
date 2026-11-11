@@ -195,19 +195,24 @@ pub fn ThemeToggle(
 
 /// Settings-page form of [`ThemeToggle`]: a radio group for system, light and
 /// dark that applies and persists the choice the same way and restores it on
-/// mount (SSR renders `System` checked). `labels` are `[system, light, dark]`
+/// mount (SSR renders `System` checked). As with [`ThemeToggle`], a
+/// `preference` lets the host control the checked option, for example to keep
+/// it in step with a header toggle. `labels` are `[system, light, dark]`
 /// and default to English; each option carries `data-theme-preference` for
 /// host swatches.
 #[component]
 pub fn ThemeChoice(
     #[props(default = "Theme".to_string())] legend: String,
+    #[props(default)] preference: Option<ThemePreference>,
     #[props(default)] labels: Option<[String; 3]>,
     #[props(default)] on_change: Option<EventHandler<ThemePreference>>,
 ) -> Element {
-    let mut stored = use_signal(ThemePreference::default);
+    let mut stored = use_signal(|| preference.unwrap_or_default());
     use_effect(move || {
         spawn(async move {
-            if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
+            if let Some(preference) = preference {
+                let _ = document::eval(&theme_apply_script(preference));
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
                 && let Some(restored) = ThemePreference::parse(&value)
             {
                 stored.set(restored);
@@ -215,7 +220,7 @@ pub fn ThemeChoice(
         });
     });
     let labels = labels.unwrap_or_else(|| ["System", "Light", "Dark"].map(String::from));
-    let current = *stored.read();
+    let current = preference.unwrap_or_else(|| *stored.read());
     let options = [
         ThemePreference::System,
         ThemePreference::Light,
@@ -1749,6 +1754,13 @@ mod tests {
             html.contains(" Clair") && !html.contains(" Light"),
             "{html}"
         );
+        #[component]
+        fn Controlled() -> Element {
+            rsx! { ThemeChoice { preference: ThemePreference::Dark } }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Controlled {} });
+        assert!(html.contains("value=\"dark\" checked"), "{html}");
+        assert!(!html.contains("value=\"system\" checked"), "{html}");
     }
 
     #[test]
