@@ -149,13 +149,33 @@ fn format_prec<L: Display>(expr: &QueryExpr<L>, parent_prec: u8) -> String {
     }
 }
 
-/// Quote a value for the text syntax when it is empty or contains whitespace
-/// or any of `( ) " : < >`; escapes `"` and `\`.
+/// The host lexer turns a bare `AND`/`OR`/`NOT` into a boolean operator, so a
+/// literal with one of those words must be quoted (the comparison ignores case
+/// so a future case-insensitive lexer keeps working).
+fn reads_as_operator(value: &str) -> bool {
+    matches!(value.to_ascii_uppercase().as_str(), "AND" | "OR" | "NOT")
+}
+
+/// A leading `-` is negation before a quote, `(`, `_` or a letter; quoting the
+/// value keeps it a word. Negative numbers and hyphenated words stay bare.
+fn starts_with_negation(value: &str) -> bool {
+    match value.strip_prefix('-').and_then(|rest| rest.chars().next()) {
+        Some('"' | '(' | '_') => true,
+        Some(char) => char.is_ascii_alphabetic(),
+        None => false,
+    }
+}
+
+/// Quote a value for the text syntax when it is empty, contains whitespace or
+/// any of `( ) " : < >`, reads as a boolean operator or starts with negation.
+/// Escapes `"` and `\`.
 pub fn quote_value(value: &str) -> String {
     let needs_quotes = value.is_empty()
         || value
             .chars()
-            .any(|char| char.is_whitespace() || matches!(char, '(' | ')' | '"' | ':' | '<' | '>'));
+            .any(|char| char.is_whitespace() || matches!(char, '(' | ')' | '"' | ':' | '<' | '>'))
+        || reads_as_operator(value)
+        || starts_with_negation(value);
     if !needs_quotes {
         return value.to_string();
     }
@@ -336,6 +356,125 @@ mod tests {
     }
     fn toggled(expr: Option<QueryExpr<T>>, key: &str, value: &str) -> Option<QueryExpr<T>> {
         toggle_facet(expr, key, value)
+    }
+
+    /// The host lexer's word rules, enough to prove a formatted leaf keeps its
+    /// value: whitespace and `( ) :` end a word, `"` quotes one, a leading `-`
+    /// before a quote, paren, letter or `_` is negation, and a bare
+    /// `AND`/`OR`/`NOT` is an operator.
+    #[derive(Debug, PartialEq)]
+    enum Lex {
+        Word(String),
+        Operator,
+        Negation,
+    }
+
+    fn word_kind(word: String) -> Lex {
+        match word.as_str() {
+            "AND" | "OR" | "NOT" => Lex::Operator,
+            _ => Lex::Word(word),
+        }
+    }
+
+    fn negation_follows(chars: &[char], index: usize) -> bool {
+        match chars.get(index) {
+            Some('"' | '(' | '_') => true,
+            Some(char) => char.is_ascii_alphabetic(),
+            None => false,
+        }
+    }
+
+    fn lex(input: &str) -> Vec<Lex> {
+        let chars: Vec<char> = input.chars().collect();
+        let mut index = 0;
+        let mut out = Vec::new();
+        while index < chars.len() {
+            let char = chars[index];
+            if char.is_whitespace() || matches!(char, '(' | ')' | ':') {
+                index += 1;
+            } else if char == '"' {
+                index += 1;
+                let mut word = String::new();
+                while index < chars.len() {
+                    match chars[index] {
+                        '\\' => {
+                            index += 1;
+                            if index < chars.len() {
+                                word.push(chars[index]);
+                                index += 1;
+                            }
+                        }
+                        '"' => {
+                            index += 1;
+                            break;
+                        }
+                        next => {
+                            word.push(next);
+                            index += 1;
+                        }
+                    }
+                }
+                out.push(Lex::Word(word));
+            } else if char == '-' && negation_follows(&chars, index + 1) {
+                out.push(Lex::Negation);
+                index += 1;
+            } else {
+                let mut word = String::new();
+                while index < chars.len()
+                    && !chars[index].is_whitespace()
+                    && !matches!(chars[index], '(' | ')' | ':' | '"')
+                {
+                    word.push(chars[index]);
+                    index += 1;
+                }
+                out.push(word_kind(word));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn operator_words_and_negation_prefixes_are_quoted() {
+        // A bare AND/OR/NOT is an operator to the host lexer.
+        for word in ["AND", "OR", "NOT"] {
+            assert_eq!(quote_value(word), format!("\"{word}\""));
+            assert_eq!(lex(word), vec![Lex::Operator], "{word}");
+            assert_eq!(lex(&quote_value(word)), vec![Lex::Word(word.to_owned())]);
+            // The formatted facet keeps the value literal.
+            assert_eq!(
+                lex(&f("kind", word).to_string()),
+                vec![Lex::Word("kind".to_owned()), Lex::Word(word.to_owned())],
+                "{word}"
+            );
+        }
+        // The lexer is case-sensitive today; quoting is not, so a literal can
+        // never become an operator through a case change in either direction.
+        for word in ["and", "Or", "not"] {
+            assert_eq!(quote_value(word), format!("\"{word}\""));
+            assert_eq!(lex(&quote_value(word)), vec![Lex::Word(word.to_owned())]);
+            assert_eq!(
+                lex(&f("kind", word).to_string()),
+                vec![Lex::Word("kind".to_owned()), Lex::Word(word.to_owned())]
+            );
+        }
+        // A leading `-` before a quote, paren, letter or `_` is negation.
+        for word in ["-abc", "-_x", r#"-"q""#, "-("] {
+            assert!(quote_value(word).starts_with('"'), "{word}");
+            assert!(
+                lex(word).contains(&Lex::Negation),
+                "the unquoted value should read as negation: {word}"
+            );
+            assert_eq!(lex(&quote_value(word)), vec![Lex::Word(word.to_owned())]);
+            assert_eq!(
+                lex(&f("kind", word).to_string()),
+                vec![Lex::Word("kind".to_owned()), Lex::Word(word.to_owned())]
+            );
+        }
+        // A hyphen that is not negation stays a bare word.
+        for word in ["-40", "e-mail", "-"] {
+            assert_eq!(quote_value(word), word);
+            assert_eq!(lex(word), vec![Lex::Word(word.to_owned())], "{word}");
+        }
     }
 
     #[test]

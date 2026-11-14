@@ -157,17 +157,22 @@ pub fn ThemeToggle(
     #[props(default)] on_toggle: Option<EventHandler<ThemePreference>>,
 ) -> Element {
     let mut stored = use_signal(|| preference.unwrap_or_default());
-    use_effect(move || {
+    // Tracked on `preference`: a host-driven change must reach the document and
+    // persistence, not only the rendered control.
+    use_effect(use_reactive!(|preference| {
         spawn(async move {
             if let Some(preference) = preference {
                 let _ = document::eval(&theme_apply_script(preference));
-            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
-                && let Some(restored) = ThemePreference::parse(&value)
-            {
-                stored.set(restored);
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await {
+                if let Some(restored) = ThemePreference::parse(&value) {
+                    stored.set(restored);
+                    // Without THEME_INIT_SCRIPT the document has no `data-theme`
+                    // yet; restoring the control alone leaves it unthemed.
+                    let _ = document::eval(&theme_apply_script(restored));
+                }
             }
         });
-    });
+    }));
     let current = preference.unwrap_or_else(|| *stored.read());
     let next = current.next();
     rsx! {
@@ -208,17 +213,22 @@ pub fn ThemeChoice(
     #[props(default)] on_change: Option<EventHandler<ThemePreference>>,
 ) -> Element {
     let mut stored = use_signal(|| preference.unwrap_or_default());
-    use_effect(move || {
+    // Tracked on `preference`, like the toggle: a host-driven change reaches
+    // the document and persistence.
+    use_effect(use_reactive!(|preference| {
         spawn(async move {
             if let Some(preference) = preference {
                 let _ = document::eval(&theme_apply_script(preference));
-            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
-                && let Some(restored) = ThemePreference::parse(&value)
-            {
-                stored.set(restored);
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await {
+                if let Some(restored) = ThemePreference::parse(&value) {
+                    stored.set(restored);
+                    // The checked radio alone does not theme the document on
+                    // hosts without THEME_INIT_SCRIPT.
+                    let _ = document::eval(&theme_apply_script(restored));
+                }
             }
         });
-    });
+    }));
     let labels = labels.unwrap_or_else(|| ["System", "Light", "Dark"].map(String::from));
     let current = preference.unwrap_or_else(|| *stored.read());
     let options = [
@@ -907,6 +917,10 @@ fn utf16_to_byte(value: &str, utf16: usize) -> usize {
 
 /// Caret (byte offset into `new`) after one contiguous edit of `old`: the end
 /// of the changed region. Typing, deleting and pasting are single edits.
+///
+/// This is the fallback for environments without a DOM selection: repeated
+/// text makes the changed region ambiguous (inserting `a` at the start of `aa`
+/// guesses the end), so a browser passes the input's own `selectionStart`.
 fn caret_after_edit(old: &str, new: &str) -> usize {
     let prefix: usize = old
         .chars()
@@ -932,6 +946,39 @@ fn byte_to_utf16(value: &str, byte: usize) -> usize {
         .take_while(|(index, _)| *index < byte)
         .map(|(_, ch)| ch.len_utf16())
         .sum()
+}
+
+/// The caret (byte offset into `value`) a `value`-replacing edit leaves behind.
+/// The element's own `selection_start` (UTF-16 units) is authoritative; the
+/// prefix/suffix comparison is the fallback outside a browser.
+fn caret_for_input(old: &str, value: &str, selection_start: Option<usize>) -> usize {
+    match selection_start {
+        Some(units) => utf16_to_byte(value, units),
+        None => caret_after_edit(old, value),
+    }
+}
+
+/// The focused input's `selectionStart`, read synchronously so the caret can
+/// travel with the same event as the value. `None` off the web or before the
+/// DOM node exists.
+#[cfg(target_arch = "wasm32")]
+fn input_selection_start(id: &str) -> Option<usize> {
+    use web_sys::wasm_bindgen::JsCast;
+    let document = web_sys::window()?.document()?;
+    let input = document
+        .get_element_by_id(id)?
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .ok()?;
+    input
+        .selection_start()
+        .ok()
+        .flatten()
+        .map(|units| units as usize)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn input_selection_start(_id: &str) -> Option<usize> {
+    None
 }
 
 /// Split `value` into `(text, kind)` runs for the highlight mirror. Marks that
@@ -1050,6 +1097,7 @@ pub fn QueryCombobox(
     let click_value = value.clone();
     let input_id = id.clone();
     let input_value = value.clone();
+    let selection_id = id.clone();
     let keyup_id = id.clone();
     let click_id = id.clone();
     let scroll_id = id.clone();
@@ -1131,7 +1179,11 @@ pub fn QueryCombobox(
                         // Synchronous: an async report would let a re-render write
                         // the stale value back, which moves the caret to the end.
                         let value = event.value();
-                        let caret = caret_after_edit(&input_value, &value);
+                        let caret = caret_for_input(
+                            &input_value,
+                            &value,
+                            input_selection_start(&selection_id),
+                        );
                         on_input.call((value, caret));
                         sync_input(&input_id, None);
                     },
@@ -1154,11 +1206,11 @@ pub fn QueryCombobox(
                     onblur: move |_| open.set(false),
                     onkeyup: move |event| {
                         let key = event.key().to_string();
-                        if let Some(on_caret) = on_caret
-                            && matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End")
-                        {
-                            let (id, value) = (keyup_id.clone(), caret_value.clone());
-                            spawn(async move { on_caret.call(read_caret(&id, &value).await) });
+                        if matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End") {
+                            if let Some(on_caret) = on_caret {
+                                let (id, value) = (keyup_id.clone(), caret_value.clone());
+                                spawn(async move { on_caret.call(read_caret(&id, &value).await) });
+                            }
                         }
                     },
                     onkeydown: move |event| {
@@ -1239,8 +1291,10 @@ pub fn QueryCombobox(
                             }
                         }
                     }
-                    if expanded && let Some(footer) = footer {
-                        div { class: "tartan-combobox-footer", {footer} }
+                    if expanded {
+                        if let Some(footer) = footer {
+                            div { class: "tartan-combobox-footer", {footer} }
+                        }
                     }
                 }
             }
@@ -1261,6 +1315,23 @@ mod tests {
         assert_eq!(caret_after_edit("a b", "a req: b"), 7);
         assert_eq!(caret_after_edit("m²", "m²x"), "m²x".len());
         assert_eq!(caret_after_edit("", ""), 0);
+    }
+
+    #[test]
+    fn the_inputs_own_selection_beats_the_repeated_text_guess() {
+        // Inserting `a` at the start of `aa` is ambiguous: prefix/suffix
+        // comparison guesses the end, the element reports 1.
+        assert_eq!(caret_after_edit("aa", "aaa"), 3);
+        assert_eq!(caret_for_input("aa", "aaa", Some(1)), 1);
+        assert_eq!(caret_for_input("aa", "aaa", None), 3);
+        // UTF-16 selection indexes become byte offsets; one inside a surrogate
+        // pair rounds up; one past the end clamps.
+        assert_eq!(caret_for_input("", "m²", Some(1)), 1);
+        assert_eq!(caret_for_input("", "m²", Some(2)), "m²".len());
+        assert_eq!(caret_for_input("", "ab", Some(9)), 2);
+        // The ordinary cases agree with either source.
+        assert_eq!(caret_for_input("type:", "type:p", Some(6)), 6);
+        assert_eq!(caret_for_input("aXa", "aa", Some(1)), 1);
     }
 
     #[test]
