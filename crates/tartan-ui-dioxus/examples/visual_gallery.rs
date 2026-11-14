@@ -1,14 +1,16 @@
 use dioxus::prelude::*;
 use tartan_ui_core::{
     AccessibleResource, Feedback, FeedbackKind, FilterChoice, FilterOption, Identity, Metric,
-    NavigationLink, ResourceSummary, ThemePreference,
+    NavigationLink, ResourceSummary,
 };
 use tartan_ui_dioxus::{
     CardGrid, CheckboxFilterGroup, DashboardHeader, DescriptionItem, DescriptionList,
     DetailDisclosure, FeedbackBanner, Field, LoadingState, MediaAspect, MediaFit, MediaPreview,
     MetricStrip, NavigationList, Pagination, Panel, ProductShell, ResourceDashboard, SelectField,
-    TagList, ThemeToggle,
+    TagList, ThemeToggle, icons,
 };
+
+const GALLERY_THEME: Asset = asset!("/examples/gallery-theme.css");
 
 fn main() {
     dioxus::launch(App);
@@ -16,7 +18,6 @@ fn main() {
 
 #[component]
 fn App() -> Element {
-    let mut preference = use_signal(|| ThemePreference::Dark);
     let mut query = use_signal(String::new);
     let mut kind = use_signal(|| "all".to_string());
     let mut pdf = use_signal(|| true);
@@ -79,6 +80,7 @@ fn App() -> Element {
     ];
 
     rsx! {
+        document::Stylesheet { href: GALLERY_THEME }
         ProductShell {
             title: "Tartan UI component gallery".to_string(),
             brand: "Tartan UI".to_string(),
@@ -90,10 +92,7 @@ fn App() -> Element {
             }),
             div { class: "tartan-gallery__nav",
                 NavigationList { items: navigation, aria_label: "Gallery navigation".to_string() }
-                ThemeToggle {
-                    preference: preference(),
-                    on_toggle: move |next| preference.set(next),
-                }
+                ThemeToggle {}
             }
             div { id: "overview", class: "tartan-gallery",
                 DashboardHeader {
@@ -142,6 +141,18 @@ fn App() -> Element {
                             LoadingState { label: "Refreshing summary".to_string() }
                         }
                     }
+                }
+                section { id: "icons", class: "tartan-gallery__section",
+                    h2 { "Icons" }
+                    div { class: "tartan-action-group",
+                        icons::ChevronLeft {} icons::ChevronRight {} icons::Circle {} icons::Square {}
+                        icons::Undo2 {} icons::Redo2 {} icons::Save {} icons::MoreHorizontal {}
+                        icons::Plus {} icons::Minus {} icons::Sun {} icons::Moon {} icons::Monitor {}
+                        icons::ExternalLink {} icons::Copy { label: "Copy".to_string() }
+                    }
+                    FeedbackBanner { feedback: Feedback { kind: FeedbackKind::Info, message: "Info state".to_string() } }
+                    FeedbackBanner { feedback: Feedback { kind: FeedbackKind::Warning, message: "Warning state".to_string() } }
+                    FeedbackBanner { feedback: Feedback { kind: FeedbackKind::Error, message: "Error state".to_string() } }
                 }
                 section { id: "settings", class: "tartan-gallery__section",
                     Panel { title: "Shared form and detail primitives".to_string(),
