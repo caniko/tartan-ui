@@ -112,13 +112,11 @@ pub fn ProductShell(
     }
 }
 
-/// `localStorage` key holding the persisted [`ThemePreference`].
-pub const THEME_STORAGE_KEY: &str = "tartan-theme";
-
-/// Inline `<head>` script that restores a persisted light/dark choice before
-/// first paint. Optional: [`ThemeToggle`] restores on mount without it.
-pub const THEME_INIT_SCRIPT: &str = "try{var t=localStorage.getItem('tartan-theme');\
-if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}";
+/// `localStorage` keys for the persisted [`ThemePreference`] and palette id,
+/// and the `<head>` script that restores both before first paint. Optional:
+/// [`ThemeToggle`], [`ThemeChoice`] and [`PaletteChoice`] restore on mount
+/// without it.
+pub use tartan_ui_assets::{PALETTE_STORAGE_KEY, THEME_INIT_SCRIPT, THEME_STORAGE_KEY};
 
 const THEME_RESTORE_SCRIPT: &str =
     "try{dioxus.send(localStorage.getItem('tartan-theme')||'')}catch(e){dioxus.send('')}";
@@ -254,6 +252,103 @@ pub fn ThemeChoice(
                             let _ = document::eval(&theme_apply_script(preference));
                             if let Some(on_change) = on_change {
                                 on_change.call(preference);
+                            }
+                        },
+                    }
+                    " {label}"
+                }
+            }
+        }
+    }
+}
+
+const PALETTE_RESTORE_SCRIPT: &str =
+    "try{dioxus.send(localStorage.getItem('tartan-palette')||'')}catch(e){dioxus.send('')}";
+
+/// Palette ids end up in an HTML attribute, a CSS selector and a script, so
+/// they are restricted to 1-32 `[a-z0-9-]` characters (as in
+/// [`THEME_INIT_SCRIPT`]).
+pub fn is_palette_id(id: &str) -> bool {
+    (1..=32).contains(&id.len())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+/// JavaScript that writes `id` to `<html data-palette>` and persists it; a
+/// no-op for an invalid id.
+pub fn palette_apply_script(id: &str) -> String {
+    if !is_palette_id(id) {
+        return String::new();
+    }
+    format!(
+        "try{{document.documentElement.setAttribute('data-palette','{id}');\
+         localStorage.setItem('{PALETTE_STORAGE_KEY}','{id}')}}catch(e){{}}"
+    )
+}
+
+/// Radio group for the colour palette, the companion of [`ThemeChoice`]. The
+/// host passes `palettes` as `(id, label)` pairs, typically the palettes its
+/// broker stylesheet scopes under `[data-palette=id]`, and the `default` that
+/// is checked when nothing is stored. A change writes `data-palette` on
+/// `<html>`, persists the id in `localStorage` (`tartan-palette`) and calls
+/// `on_change`; a stored id is restored on mount (SSR renders `default`).
+/// `preference` lets the host control the checked option, for example from
+/// an account setting. Each option carries `data-palette-option` for host
+/// swatches.
+#[component]
+pub fn PaletteChoice(
+    #[props(default = "Palette".to_string())] legend: String,
+    palettes: Vec<(String, String)>,
+    default: String,
+    #[props(default)] preference: Option<String>,
+    #[props(default)] on_change: Option<EventHandler<String>>,
+) -> Element {
+    let mut stored = use_signal(|| default.clone());
+    let known = palettes
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<Vec<_>>();
+    let controlled = preference.clone();
+    use_effect(move || {
+        let controlled = controlled.clone();
+        let known = known.clone();
+        spawn(async move {
+            if let Some(id) = controlled {
+                let _ = document::eval(&palette_apply_script(&id));
+            } else if let Ok(value) = document::eval(PALETTE_RESTORE_SCRIPT)
+                .recv::<String>()
+                .await
+                && known.contains(&value)
+            {
+                // Hosts without THEME_INIT_SCRIPT still get the palette.
+                let _ = document::eval(&palette_apply_script(&value));
+                stored.set(value);
+            }
+        });
+    });
+    let current = preference.unwrap_or_else(|| stored.read().clone());
+    rsx! {
+        fieldset { class: "tartan-palette-choice",
+            legend { "{legend}" }
+            for (id, label) in palettes {
+                label {
+                    key: "{id}",
+                    class: "tartan-palette-choice__option",
+                    "data-palette-option": "{id}",
+                    input {
+                        r#type: "radio",
+                        name: PALETTE_STORAGE_KEY,
+                        value: "{id}",
+                        checked: current == id,
+                        onchange: {
+                            let id = id.clone();
+                            move |_| {
+                                stored.set(id.clone());
+                                let _ = document::eval(&palette_apply_script(&id));
+                                if let Some(on_change) = on_change {
+                                    on_change.call(id.clone());
+                                }
                             }
                         },
                     }
@@ -1843,6 +1938,49 @@ mod tests {
         assert!(dark.contains("setAttribute('data-theme','dark')"), "{dark}");
         assert!(dark.contains("setItem('tartan-theme','dark')"));
         assert!(THEME_INIT_SCRIPT.contains("tartan-theme"));
+    }
+
+    #[test]
+    fn palette_choice_checks_the_default_and_scripts_reject_bad_ids() {
+        #[component]
+        fn Fixture(preference: Option<String>) -> Element {
+            rsx! {
+                PaletteChoice {
+                    palettes: vec![
+                        ("blackbox-pink".to_string(), "Blackbox Pink".to_string()),
+                        ("gruvbox".to_string(), "Gruvbox".to_string()),
+                    ],
+                    default: "blackbox-pink".to_string(),
+                    preference,
+                }
+            }
+        }
+        let html = dioxus_ssr::render_element(rsx! { Fixture { preference: None } });
+        assert_eq!(html.matches("name=\"tartan-palette\"").count(), 2, "{html}");
+        assert!(html.contains("value=\"blackbox-pink\" checked"), "{html}");
+        assert!(html.contains("data-palette-option=\"gruvbox\""), "{html}");
+        assert!(html.contains(" Gruvbox"), "{html}");
+        let html = dioxus_ssr::render_element(
+            rsx! { Fixture { preference: Some("gruvbox".to_string()) } },
+        );
+        assert!(html.contains("value=\"gruvbox\" checked"), "{html}");
+        assert!(!html.contains("value=\"blackbox-pink\" checked"), "{html}");
+
+        let apply = palette_apply_script("gruvbox");
+        assert!(
+            apply.contains("setAttribute('data-palette','gruvbox')"),
+            "{apply}"
+        );
+        assert!(
+            apply.contains("setItem('tartan-palette','gruvbox')"),
+            "{apply}"
+        );
+        for bad in ["", "Gruvbox", "a'b", "a]b", &"x".repeat(33)] {
+            assert!(!is_palette_id(bad), "{bad}");
+            assert!(palette_apply_script(bad).is_empty(), "{bad}");
+        }
+        assert!(THEME_INIT_SCRIPT.contains("getItem('tartan-palette')"));
+        assert!(THEME_INIT_SCRIPT.contains("/^[a-z0-9-]{1,32}$/"));
     }
 
     const STYLESHEET: &str = include_str!("../assets/tartan-ui.css");
