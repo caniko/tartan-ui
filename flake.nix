@@ -2,7 +2,7 @@
   description = "Rust project";
 
   inputs = {
-    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=fac8049316846e0ef1c1e6acd92aed7a337b333a";
+    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=0281ddd805895c340bff91336c329bd3ae6240ce";
     nixpkgs.follows = "harbor-rs/nixpkgs";
     rust-overlay.follows = "harbor-rs/rust-overlay";
     crane.follows = "harbor-rs/crane";
@@ -48,6 +48,8 @@
         cacheRoot = null;
         namespaceScope = "canix-rust";
         namespaceGeneration = 5;
+        # Hosted CI runners have no managed sccache transport.
+        ephemeralFallback = true;
       };
       # Dioxus' `asset!` macro resolves assets while Cargo compiles. Crane's
       # default Cargo source filter excludes CSS, so keep the shared stylesheet
@@ -57,6 +59,8 @@
         fileset = pkgs.lib.fileset.unions [
           (craneLib.fileset.commonCargoSources ./.)
           ./crates/tartan-ui-dioxus/assets
+          ./crates/tartan-ui-assets/assets
+          ./crates/tartan-ui-dioxus/examples/gallery-theme.css
         ];
       };
       commonArgs = {
@@ -143,7 +147,7 @@
         core-tests = rawCraneLib.cargoTest (commonArgs
           // {
             cargoArtifacts = checkCargoArtifacts;
-            cargoTestExtraArgs = "-p tartan-ui-core";
+            cargoTestExtraArgs = "-p tartan-ui-core -p tartan-ui-annotate";
           });
         dioxus-web = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web";
         dioxus-web-devtools = mkDioxusCheck dioxusWebArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features web,devtools";
@@ -151,6 +155,7 @@
         dioxus-server = mkDioxusCheck dioxusServerArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features server";
         dioxus-native = mkDioxusCheck dioxusNativeArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features native";
         dioxus-desktop = mkDioxusCheck dioxusDesktopArgs "cargoWithProfile check --locked -p tartan-ui-dioxus --no-default-features --features desktop";
+        annotate-dioxus = mkDioxusCheck dioxusWebArgs "cargoWithProfile test --locked -p tartan-ui-annotate --features dioxus";
         clippy = rawCraneLib.cargoClippy (dioxusWebArgs
           // {
             # Crane's cargoClippy helper supplies --locked for the derivation;
@@ -262,6 +267,7 @@
               # `--all-features` is invalid because web and native embedding
               # are deliberately mutually exclusive.
               cargo test -p tartan-ui-core --locked
+              cargo test -p tartan-ui-annotate --features dioxus --locked
               cargo test -p tartan-ui-dioxus --no-default-features --features web --locked
               cargo check -p tartan-ui-dioxus --no-default-features --features web,devtools --locked
               cargo check -p tartan-ui-dioxus --no-default-features --features web,wasm-split --locked
@@ -269,6 +275,7 @@
               cargo check -p tartan-ui-dioxus --no-default-features --features native --locked
               cargo check -p tartan-ui-dioxus --no-default-features --features desktop --locked
               cargo clippy -p tartan-ui-dioxus --no-default-features --features web --all-targets --locked -- --deny warnings
+              cargo clippy -p tartan-ui-annotate --features dioxus --all-targets --locked -- --deny warnings
               cargo deny check bans licenses sources
               cargo package --workspace --allow-dirty --list >/dev/null
             '';

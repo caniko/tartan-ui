@@ -1,0 +1,80 @@
+@layer tartan-layout {
+  /* Aliases of the theme-broker `--tb-*` variables; the literals are the Blackbox
+     light values used when no broker stylesheet is loaded. Unlayered rules
+     (tartan-ui.css, host overrides) take precedence. */
+  :root {
+    --tartan-paper: var(--tb-ui-background, #ffffff);
+    --tartan-ink: var(--tb-ui-foreground, #1d2021);
+    --tartan-muted: var(--tb-ui-foreground-muted, #5a5550);
+    --tartan-line: var(--tb-ui-border, #d9d9d6);
+    --tartan-accent: var(--tb-ui-accent, #076678);
+    --tartan-accent-hover: var(--tb-ui-accent-hover);
+    --tartan-accent-active: var(--tb-ui-accent-active);
+    --tartan-accent-soft: var(--tb-ui-selection-background, #f2f2f0);
+    --tartan-on-accent: var(--tb-ui-on-accent, var(--tb-ui-background, #ffffff));
+    --tartan-selection-background: var(--tb-ui-selection-background, Highlight);
+    --tartan-selection-foreground: var(--tb-ui-selection-foreground, HighlightText);
+    --tartan-surface: var(--tb-ui-surface, #f2f2f0);
+    --tartan-danger: var(--tb-status-error, #9d0006);
+    --tartan-warning: var(--tb-status-warning, #af3a03);
+    --tartan-success: var(--tb-status-success, #79740e);
+    --tartan-info: var(--tb-status-info, #076678);
+    --tartan-focus: var(--tb-ui-focus, #076678);
+    --tartan-radius: 6px;
+    --tartan-space-1: 4px;
+    --tartan-space-2: 8px;
+    --tartan-space-3: 12px;
+    --tartan-space-4: 16px;
+    --tartan-space-5: 20px;
+    --tartan-space-6: 24px;
+    --tartan-space-8: 32px;
+  }
+  :is(.tartan-flow, .tartan-responsive-grid, .tartan-section-header,
+      .tartan-action-group, .tartan-surface, .tartan-field, .tartan-navigation-disclosure) {
+    min-width: 0;
+  }
+  :is(.tartan-flow, .tartan-responsive-grid, .tartan-section-header, .tartan-surface) > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .tartan-flow { display: grid; align-content: start; gap: var(--tartan-flow-gap, var(--tartan-space-4)); }
+  .tartan-responsive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tartan-card-min, 16rem)), 1fr));
+    align-items: start;
+    gap: var(--tartan-grid-gap, var(--tartan-space-4));
+  }
+  .tartan-surface {
+    box-sizing: border-box;
+    padding: var(--tartan-surface-padding, var(--tartan-space-5));
+    border: 1px solid var(--tartan-line);
+    border-radius: var(--tartan-surface-radius, var(--tartan-radius));
+    color: var(--tartan-ink);
+    background: var(--tartan-surface);
+  }
+  .tartan-section-header { display: flex; flex-wrap: wrap; align-items: start; gap: var(--tartan-space-4); }
+  .tartan-section-header__body { flex: 1 1 20rem; display: grid; gap: var(--tartan-space-2); }
+  .tartan-section-header__body > :is(h1, h2, p) { margin: 0; }
+  .tartan-action-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tartan-space-2); }
+  .tartan-action-group > :is(a, button) { min-height: 2.75rem; box-sizing: border-box; overflow-wrap: anywhere; }
+  .tartan-field > :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    font: inherit;
+  }
+  .tartan-navigation-disclosure > summary {
+    display: flex; align-items: center; min-height: 2.75rem;
+    gap: var(--tartan-space-1); list-style: none; cursor: pointer; overflow-wrap: anywhere;
+  }
+  .tartan-navigation-disclosure > summary::-webkit-details-marker { display: none; }
+  .tartan-navigation-disclosure > summary::before { content: "+"; }
+  .tartan-navigation-disclosure[open] > summary::before { content: "−"; }
+  .tartan-navigation-disclosure .tartan-nav { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .tartan-navigation-disclosure .tartan-nav__link { min-width: 0; min-height: 2.75rem; overflow-wrap: anywhere; }
+  :is(.tartan-action-group, .tartan-navigation-disclosure) :is(a, button, summary):focus-visible {
+    outline: 2px solid var(--tartan-focus); outline-offset: 2px;
+  }
+}

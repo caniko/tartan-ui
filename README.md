@@ -2,7 +2,7 @@
 
 <!-- simit:badges:start -->
 
-![CI](https://img.shields.io/badge/CI-managed-2088ff) [![Nix](https://img.shields.io/badge/Nix-drift-5277c3)](flake.nix) [![crates.io](https://img.shields.io/badge/crates.io-ready-f46623)](https://crates.io/crates/tartan-ui-core)
+![CI](https://img.shields.io/badge/CI-managed-2088ff) [![Nix](https://img.shields.io/badge/Nix-drift-5277c3)](flake.nix)
 
 <!-- simit:badges:end -->
 
@@ -21,10 +21,49 @@ raw Blitz launches do not depend on a Dioxus asset-linker pass.
 
 - `tartan-ui-core` contains serializable presentation models with no UI
   framework dependency.
+- `tartan-ui-assets` exposes opt-in responsive layout styles without a renderer
+  dependency. Static generators and interactive components consume the same
+  stylesheet; applications supply semantic theme variables.
 - `tartan-ui-dioxus` contains shared Dioxus components and library assets.
+- `tartan-ui-annotate` contains renderer-neutral editing primitives for
+  annotation and curation tools, plus an opt-in SVG handle layer.
 
-Theme preference values live in `tartan-ui-core`; `ThemeToggle` in the Dioxus
-crate cycles the value without owning persistence or document/window policy.
+`tartan-ui-annotate` has no dependencies by default: `Viewport` (pan, zoom,
+fit, cursor-anchored zoom, SVG `meet` pointer mapping), `PolygonDraft` (an
+open ring with vertex insert, delete down to a triangle, nudge and drag) and
+point-in-polygon/segment hit geometry. Canvas renderers use only this core.
+The `dioxus` feature adds `PolygonHandles`, vertex and edge-midpoint handles
+drawn inside a host `<svg>` with `tartan-annotate-*` classes. Hosts keep drag
+tracking, revision binding, persistence, keyboard policy and theming.
+
+## Theme
+
+The stylesheets consume the `--tb-*` custom properties emitted by the
+nix-theme-broker web renderer and expose them as `--tartan-*` aliases
+(`--tartan-paper: var(--tb-ui-background, #ffffff)` and so on). The fallback
+literals are the Blackbox light values, so the crates work, in light mode,
+without any broker stylesheet; tartan-ui does not depend on the broker. Load the
+broker CSS to get dark mode: `prefers-color-scheme` applies unless
+`<html data-theme="light|dark">` forces a mode.
+
+Style rules are deliberately minimal: 1px borders, a single `--tartan-radius`
+(6px), no shadows or gradients, a 4px spacing scale (`--tartan-space-*`), and
+the accent only for primary actions, selection and the focus ring.
+
+`ThemePreference` (`tartan-ui-core`: `System`, `Light`, `Dark`) is the shared
+value. `ThemeToggle` (`tartan-ui-dioxus`) cycles it, writes `data-theme` on
+`<html>` (removed for `System`), persists it in `localStorage` as
+`tartan-theme` and restores it on mount. It needs no props; pass `preference`
+to control the displayed value and `on_toggle` to observe changes. Put
+`THEME_INIT_SCRIPT` in the document head to restore before first paint.
+
+## Icons
+
+`tartan_ui_dioxus::icons` vendors 15 [Lucide](https://lucide.dev) icons as
+inline SVG components (`size` 16, `stroke_width` 1.5, `currentColor`, hidden
+from assistive technology unless a `label` is given). Lucide is ISC-licensed;
+see `LICENSE-lucide` (which also carries the MIT notice for the Feather-derived
+glyphs).
 
 The first migration primitives are `FeedbackBanner` and `LoadingState`. They
 accept already-mapped application values, expose explicit live-region semantics,
@@ -33,6 +72,12 @@ when adapting Leptos products so the same contract remains usable from SSR,
 hydration, and browser-only routes.
 
 ## Shared presentation contracts
+
+`SectionHeader` composes a page heading and wrapping action slot.
+`NavigationDisclosure` uses native disclosure behavior around caller-provided
+navigation. Hosts retain route selection and authorization policy. The shared
+layout stylesheet also supplies `tartan-flow`, `tartan-responsive-grid`, and
+`tartan-surface` classes for static HTML compositions.
 
 `Pagination` renders a caller-supplied range string and previous/next URLs; it
 does not calculate totals, offsets, or cursors. `DescriptionList` and

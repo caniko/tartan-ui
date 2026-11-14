@@ -9,3 +9,6 @@ description = "Framework-neutral presentation contracts for Tartanoglu web appli
 
 [dependencies]
 serde.workspace = true
+
+[dev-dependencies]
+serde_json = "1"
