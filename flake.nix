@@ -96,6 +96,9 @@
           cargoArtifacts = checkCargoArtifacts;
           # Blitz' Stylo dependency generates properties during compilation.
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [pkgs.python3];
+          # Dioxus 0.8's Blitz font stack links fontconfig through
+          # yeslogic-fontconfig-sys.
+          buildInputs = commonArgs.buildInputs ++ [pkgs.fontconfig];
         };
       dioxusDesktopArgs =
         commonArgs
@@ -121,6 +124,10 @@
       package = buildCache.withRustCache {
         package = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
       };
+      uncachedPackage = rawCraneLib.buildPackage (commonArgs
+        // {
+          cargoArtifacts = checkCargoArtifacts;
+        });
       treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix);
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
@@ -132,9 +139,10 @@
       };
     in {
       packages.default = package;
+      packages.uncached = uncachedPackage;
       formatter = treefmtEval.config.build.wrapper;
       checks = {
-        default = package;
+        default = uncachedPackage;
         formatting = treefmtEval.config.build.check self;
         # Renderer features are mutually exclusive in this crate (for
         # example, `web` and `native-embedded` intentionally cannot coexist),
