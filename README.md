@@ -9,7 +9,7 @@
 Shared framework-neutral presentation contracts and Dioxus components for
 bekiper, Pink Raven, SynDB, and Plinth.
 
-The workspace currently targets Dioxus 0.7.10. Experimental Native/Blitz
+The workspace currently targets Dioxus 0.8.0-alpha.3. Experimental Native/Blitz
 preview support belongs in a separate gallery target and is not enabled by
 default in production consumers. The shared Dioxus crate itself has no
 renderer default; applications opt into `web`, `server`, or a native target.

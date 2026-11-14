@@ -30,11 +30,18 @@
     pass_filenames = false;
   };
 
-  cargo-msrv = {
+  # Each crate is checked with its own declared minimum: core 1.85, and the
+  # Dioxus crate 1.88 (Dioxus 0.8 uses let-chains). RUSTC pins the compiler
+  # to the same toolchain as cargo.
+  cargo-msrv = let
+    core = pkgs.rust-bin.stable."1.85.0".default;
+    dioxus = pkgs.rust-bin.stable."1.88.0".default;
+  in {
     enable = true;
     name = "cargo check MSRV";
-    entry = "${pkgs.rust-bin.stable."1.85.0".default}/bin/cargo check -p tartan-ui-core --locked && ${pkgs.rust-bin.stable."1.85.0".default}/bin/cargo check -p tartan-ui-dioxus --no-default-features --features web --locked";
-    extraPackages = [pkgs.rust-bin.stable."1.85.0".default];
+    # pre-commit runs `entry` without a shell, so `&&` needs one.
+    entry = "${pkgs.bash}/bin/bash -c 'RUSTC=${core}/bin/rustc ${core}/bin/cargo check -p tartan-ui-core --locked && RUSTC=${dioxus}/bin/rustc ${dioxus}/bin/cargo check -p tartan-ui-dioxus --no-default-features --features web --locked'";
+    extraPackages = [core dioxus];
     pass_filenames = false;
     stages = ["pre-push" "manual"];
   };

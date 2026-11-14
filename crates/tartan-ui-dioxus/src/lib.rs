@@ -163,13 +163,13 @@ pub fn ThemeToggle(
         spawn(async move {
             if let Some(preference) = preference {
                 let _ = document::eval(&theme_apply_script(preference));
-            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await {
-                if let Some(restored) = ThemePreference::parse(&value) {
-                    stored.set(restored);
-                    // Without THEME_INIT_SCRIPT the document has no `data-theme`
-                    // yet; restoring the control alone leaves it unthemed.
-                    let _ = document::eval(&theme_apply_script(restored));
-                }
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
+                && let Some(restored) = ThemePreference::parse(&value)
+            {
+                stored.set(restored);
+                // Without THEME_INIT_SCRIPT the document has no `data-theme`
+                // yet; restoring the control alone leaves it unthemed.
+                let _ = document::eval(&theme_apply_script(restored));
             }
         });
     }));
@@ -219,13 +219,13 @@ pub fn ThemeChoice(
         spawn(async move {
             if let Some(preference) = preference {
                 let _ = document::eval(&theme_apply_script(preference));
-            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await {
-                if let Some(restored) = ThemePreference::parse(&value) {
-                    stored.set(restored);
-                    // The checked radio alone does not theme the document on
-                    // hosts without THEME_INIT_SCRIPT.
-                    let _ = document::eval(&theme_apply_script(restored));
-                }
+            } else if let Ok(value) = document::eval(THEME_RESTORE_SCRIPT).recv::<String>().await
+                && let Some(restored) = ThemePreference::parse(&value)
+            {
+                stored.set(restored);
+                // The checked radio alone does not theme the document on
+                // hosts without THEME_INIT_SCRIPT.
+                let _ = document::eval(&theme_apply_script(restored));
             }
         });
     }));
@@ -1206,11 +1206,11 @@ pub fn QueryCombobox(
                     onblur: move |_| open.set(false),
                     onkeyup: move |event| {
                         let key = event.key().to_string();
-                        if matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End") {
-                            if let Some(on_caret) = on_caret {
-                                let (id, value) = (keyup_id.clone(), caret_value.clone());
-                                spawn(async move { on_caret.call(read_caret(&id, &value).await) });
-                            }
+                        if let Some(on_caret) = on_caret
+                            && matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End")
+                        {
+                            let (id, value) = (keyup_id.clone(), caret_value.clone());
+                            spawn(async move { on_caret.call(read_caret(&id, &value).await) });
                         }
                     },
                     onkeydown: move |event| {
