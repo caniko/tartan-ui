@@ -92,6 +92,9 @@
           cargoArtifacts = checkCargoArtifacts;
           # Blitz' Stylo dependency generates properties during compilation.
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [pkgs.python3];
+          # Dioxus 0.8's Blitz font stack links fontconfig through
+          # yeslogic-fontconfig-sys.
+          buildInputs = commonArgs.buildInputs ++ [pkgs.fontconfig];
         };
       dioxusDesktopArgs =
         commonArgs
